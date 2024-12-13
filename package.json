@@ -1,0 +1,41 @@
+{
+  "type": "module",
+  "name": "petit-fs",
+  "version": "1.0.0",
+  "description": "node/fs compatible interface for browser, using localStorage.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build-dev": "npx webpack --mode=development",
+    "build": "npx webpack --mode=production",
+    "test": "npx http-server -o test/index.html"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoge1e3/petit-fs.git"
+  },
+  "keywords": [
+    "filesystem"
+  ],
+  "author": "hoge1e3",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/hoge1e3/petit-fs/issues"
+  },
+  "homepage": "https://github.com/hoge1e3/petit-fs#readme",
+  "devDependencies": {
+    "@eslint/js": "^9.1.1",
+    "@types/escodegen": "^0.0.10",
+    "@types/espree": "^10.0.0",
+    "@types/stack-trace": "^0.0.33",
+    "@types/web": "^0.0.175",
+    "eslint": "^9.1.1",
+    "globals": "^15.0.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.7.2",
+    "webpack-cli": "^5.1.4",
+    "webpack-ignore-dynamic-require": "^1.0.0"
+  },
+  "dependencies": {
+    "buffer": "^6.0.3"
+  }
+}

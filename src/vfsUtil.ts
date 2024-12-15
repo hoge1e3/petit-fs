@@ -10,7 +10,49 @@ import { getRootFS } from "./fs";
 import Content from "./fs/Content";
 import FSClass, { MetaInfo } from "./fs/FSClass";
 import PathUtil from "./fs/PathUtil";
-import RootFS from "./fs/RootFS";
+import RootFS, { ObserverEvent, ObserverHandler } from "./fs/RootFS";
+
+export const path={
+    basename(path:string, ext?:string):string{
+        let res=PathUtil.name(path);
+        if (ext) {
+            return PathUtil.truncExt(res,ext);
+        }
+        return res;
+    },
+    join(...paths:string[]) {
+        if (paths.length==0) throw new Error(`empty paths`);
+        let res=paths.shift() as string;
+        while(paths.length) {
+            res=PathUtil.rel(res, paths.shift() as string);
+        }
+        return res;
+    },
+    dirname(path:string) {
+        return PathUtil.up(path);
+    },
+    extname(path:string) {
+        return PathUtil.ext(path);
+    }
+};
+export const os={
+    platform:()=>"browser",
+    EOL: "\n",
+};
+export const process={
+    _cwd: "/", 
+    cwd():string {
+        return process._cwd;
+    },
+    chdir(path:string) {
+        if (!PathUtil.isAbsolutePath(path)) {
+            path=PathUtil.rel(process._cwd,path);
+        }
+        process._cwd=path;
+    },
+    nextTick() {
+    },
+};
 
 // file type
 const S_IFMT = 0o170000; // file type
@@ -204,7 +246,8 @@ export class FileSystem {
     public lstatSync(path: string): Stats {
         const fs=this.resolveFS(path);
         const m=fs.getMetaInfo(path);
-        return meta2stat(m, fs.isDir(path), fs.size(path));
+        const size=(fs.isDir(path)?1:fs.size(path));
+        return meta2stat(m, fs.isDir(path), size);
     }
 
     
@@ -341,6 +384,7 @@ export class FileSystem {
     public readFileSync(path: string, encoding?: BufferEncoding | null): string | Buffer; // eslint-disable-line no-restricted-syntax
     public readFileSync(path: string, encoding: BufferEncoding | null = null) { // eslint-disable-line no-restricted-syntax
         const [fs, fpath]=this.followLink(path);
+        if (fs.isDir(path)) throw new Error(`Cannot read from directory: ${path}`);
         const c=fs.getContent(fpath);
         if (encoding) {
             return c.toPlainText();
@@ -358,6 +402,7 @@ export class FileSystem {
     public writeFileSync(path: string, data: string | Buffer, encoding: string | null = null): void {
         if (this.isReadonly) throw createIOError("EROFS");
         const [fs, fpath]=this.followLink(path);
+        if (fs.isDir(path)) throw new Error(`Cannot write to directory: ${path}`);
         if (typeof data==="string") {
             fs.setContent(fpath, Content.plainText(data));
         } else {
@@ -368,12 +413,50 @@ export class FileSystem {
     public appendFileSync(path: string, data: string | Buffer, encoding: string | null = null): void {
         if (this.isReadonly) throw createIOError("EROFS");
         const [fs, fpath]=this.followLink(path);
+        if (fs.isDir(path)) throw new Error(`Cannot write to directory: ${path}`);
         if (typeof data==="string") {
             fs.appendContent(fpath, Content.plainText(data));
         } else {
             fs.appendContent(fpath, Content.bin(data));
         }
     }
+
+    public watch(path:string,...opts:any[]){
+        let sec=opts.shift();
+        let options:object, listener:Function;
+        if(typeof sec==="function"){
+            listener=sec;
+            options={};
+        }else {
+            options=sec||{};
+            listener=opts.shift();
+        }
+        getRootFS().addObserver(path,function (_path:string, meta:ObserverEvent) {
+            listener(meta.eventType, PathUtil.relPath(_path,path), meta );
+        });
+    }
+    public watchFile(path: string, ...opts:any[]){
+        let sec=opts.shift();
+        let options:any, listener:(old:Stats, current:Stats)=>void;
+        if(typeof sec==="function"){
+            listener=sec;
+            options={};
+        }else {
+            options=sec||{};
+            listener=opts.shift();
+        }
+        const inter=options.interval||5000;
+        let prev=this.statSync(path);
+        const loop=()=>{
+            const cur=this.statSync(path);
+            if(cur.mtimeMs!==prev.mtimeMs){
+                listener(prev,cur);
+                prev=cur;
+            }
+        }
+        setInterval(loop,inter);
+    }
+    
 
 }
 

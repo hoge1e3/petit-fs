@@ -76,7 +76,8 @@ LSFS.prototype.itemExists = function (path) {
     return !this.mountPoint || P.startsWith(path, this.mountPoint);
 };*/
 LSFS.prototype.getDirInfo = function getDirInfo(path) {
-    assert.is(arguments, [P.AbsDir]);
+    assert.is(arguments, [P.Absolute]);
+    path=P.directorify(path);
     if (path == null) throw new Error("getDir: Null path");
     if (!endsWith(path, SEP)) path += SEP;
     assert(this.inMyFS(path));
@@ -93,8 +94,9 @@ LSFS.prototype.getDirInfo = function getDirInfo(path) {
     if (this.dirCache) this.dirCache[path] = dinfo;
     return dinfo;
 };
-LSFS.prototype.putDirInfo = function putDirInfo(path, dinfo, trashed) {
-    assert.is(arguments, [P.AbsDir, Object]);
+LSFS.prototype.putDirInfo = function putDirInfo(path, dinfo, removed) {
+    assert.is(arguments, [P.Absolute, Object]);
+    path=P.directorify(path);
     if (!isDir(path)) throw new Error("Not a directory : " + path);
     assert(this.inMyFS(path));
     if (this.dirCache) this.dirCache[path] = dinfo;
@@ -107,25 +109,24 @@ LSFS.prototype.putDirInfo = function putDirInfo(path, dinfo, trashed) {
         return;
     }
     var pdinfo = this.getDirInfo(ppath);
-    this._touch(pdinfo, ppath, P.name(path), trashed);
+    this._touch(pdinfo, ppath, P.name(path), removed);
 };
-LSFS.prototype._touch = function _touch(dinfo, path, name, trashed) {
+LSFS.prototype._touch = function _touch(dinfo, path, name, removed) {
     // path:path of dinfo
-    // trashed: this touch is caused by trashing the file/dir.
+    // removed: this touch is caused by removing the file/dir.
     assert.is(arguments, [Object, String, String]);
     assert(this.inMyFS(path));
     var eventType = "change";
-    if (!dinfo[name]) {
+    if (!removed && !dinfo[name]) {
         eventType = "create";
         dinfo[name] = {};
-        if (trashed) dinfo[name].trashed = true;
     }
-    if (!trashed) delete dinfo[name].trashed;
-    dinfo[name].lastUpdate = now();
+    if (dinfo[name]) dinfo[name].lastUpdate = now();
     var meta = extend({ eventType: eventType }, dinfo[name]);
     this.getRootFS().notifyChanged(P.rel(path, name), meta);
-    this.putDirInfo(path, dinfo, trashed);
+    this.putDirInfo(path, dinfo, removed);
 };
+/*
 LSFS.prototype.removeEntry = function removeEntry(dinfo, path, name) { // path:path of dinfo
     assert.is(arguments, [Object, String, String]);
     if (dinfo[name]) {
@@ -136,8 +137,8 @@ LSFS.prototype.removeEntry = function removeEntry(dinfo, path, name) { // path:p
         this.getRootFS().notifyChanged(P.rel(path, name), { eventType: "trash" });
         this.putDirInfo(path, dinfo, true);
     }
-};
-LSFS.prototype.removeEntryWithoutTrash = function (dinfo, path, name) { // path:path of dinfo
+};*/
+LSFS.prototype.removeEntry/*WithoutTrash*/ = function (dinfo, path, name) { // path:path of dinfo
     assert.is(arguments, [Object, String, String]);
     if (dinfo[name]) {
         delete dinfo[name];
@@ -211,13 +212,13 @@ LSFS.getCapacity = function () {
 // public methods (with resolve fs)
 FS.delegateMethods(LSFS.prototype, {
     isReadOnly: function () { return this.options.readOnly; },
-    getReturnTypes: function (path, options) {
+    getReturnTypes: function (path) {
         assert.is(arguments, [String]);
         return {
             getContent: String, opendir: [String]
         };
     },
-    getContent: function (path, options) {
+    getContent: function (path) {
         assert.is(arguments, [Absolute]);
         this.assertExist(path); // Do not use this??( because it does not follow symlinks)
         var c;
@@ -229,7 +230,7 @@ FS.delegateMethods(LSFS.prototype, {
         }
         return c;
     },
-    setContent: function (path, content, options) {
+    setContent: function (path, content) {
         assert.is(arguments, [Absolute, Content]);
         this.assertWriteable(path);
         var t = null;
@@ -249,8 +250,8 @@ FS.delegateMethods(LSFS.prototype, {
         if (this.exists(path)) c = this.getContent(path).toPlainText();
         return this.setContent(path, Content.plainText(c + content.toPlainText()));
     },
-    getMetaInfo: function (path, options) {
-        this.assertExist(path, { includeTrashed: true });
+    getMetaInfo: function (path) {
+        this.assertExist(path);
         assert.is(arguments, [Absolute]);
         if (path == P.SEP) {
             return {};
@@ -262,9 +263,10 @@ FS.delegateMethods(LSFS.prototype, {
         var name = P.name(path);
         assert.is(parent, P.AbsDir);
         var pinfo = this.getDirInfo(parent);
-        return assert(pinfo[name]);
+        if (pinfo[name]) return pinfo[name];
+        return assert(pinfo[name+"/"], `${path} does not exist.`);
     },
-    setMetaInfo: function (path, info, options) {
+    setMetaInfo: function (path, info) {
         assert.is(arguments, [String, Object]);
         this.assertWriteable(path);
         var parent = assert(P.up(path));
@@ -273,81 +275,71 @@ FS.delegateMethods(LSFS.prototype, {
         }
         var pinfo = this.getDirInfo(parent);
         var name = P.name(path);
+        if (!P.isDir(path) && !pinfo[name] && pinfo[name+"/"]) {
+            name=name+"/";
+        }
         pinfo[name] = info;
-        this.putDirInfo(parent, pinfo, pinfo[name].trashed);
+        this.putDirInfo(parent, pinfo);
     },
-    mkdir: function (path, options) {
+    mkdir: function (path) {
         assert.is(arguments, [Absolute]);
         this.assertWriteable(path);
         this.touch(path);
     },
-    opendir: function (path, options) {
+    opendir: function (path) {
         assert.is(arguments, [String]);
         //succ: iterator<string> // next()
-        // options: {includeTrashed:Boolean}
-        options = options || {};
         var inf = this.getDirInfo(path);
         var res = []; //this.dirFromFstab(path);
         for (var i in inf) {
             assert(inf[i]);
-            if (!inf[i].trashed || options.includeTrashed) res.push(i);
+            res.push(i);
         }
         return assert.is(res, Array);
     },
-    rm: function (path, options) {
+    rm: function (path) {
         assert.is(arguments, [Absolute]);
-        options = options || {};
         this.assertWriteable(path);
         var parent = P.up(path);
         if (parent == null || !this.inMyFS(parent)) {
             throw new Error(path + ": cannot remove. It is root of this FS.");
         }
-        this.assertExist(path, { includeTrashed: options.noTrash });
+        this.assertExist(path);
         if (P.isDir(path)) {
             var lis = this.opendir(path);
             if (lis.length > 0) {
                 this.err(path, "Directory not empty");
             }
-            if (options.noTrash) {
-                this.removeItem(path);
-            }
+            this.removeItem(path);
         } else {
             this.removeItem(path);
         }
         var pinfo = this.getDirInfo(parent);
-        if (options.noTrash) {
-            this.removeEntryWithoutTrash(pinfo, parent, P.name(path));
-        } else {
-            this.removeEntry(pinfo, parent, P.name(path));
-        }
+        this.removeEntry(pinfo, parent, P.name(path));
     },
-    exists: function (path, options) {
+    exists: function (path) {
         assert.is(arguments, [Absolute]);
-        options = options || {};
         var name = P.name(path);
         var parent = P.up(path);
         if (parent == null || !this.inMyFS(parent)) return true;
         var pinfo = this.getDirInfo(parent);
         var res = pinfo[name];
-        if (res && res.trashed && this.itemExists(path)) {
-            if (this.isDir(path)) {
-
-            } else {
-                //assert.fail("Inconsistent "+path+": trashed, but remains in storage");
-            }
-        }
-        if (!res && this.itemExists(path)) {
-            //assert.fail("Inconsistent "+path+": not exists in metadata, but remains in storage");
-        }
-        if (res && !res.trashed && !res.link && !this.itemExists(path)) {
-            //assert.fail("Inconsistent "+path+": exists in metadata, but not in storage");
-        }
-        if (res && !options.includeTrashed) {
-            res = !res.trashed;
-        }
-        return !!res;
+        if (res) return true;
+        if (P.isDir(path)) return false;
+        return !!pinfo[name+"/"];
     },
-    link: function (path, to, options) {
+    isDir(path){
+        assert.is(arguments, [Absolute]);
+        if(P.isDir(path))return true;
+        var name = P.name(path);
+        var parent = P.up(path);
+        if (parent == null) return true;
+        var pinfo = this.getDirInfo(parent);
+        var res = pinfo[name];
+        if (res) return false;
+        return !!pinfo[name+"/"];
+    },    
+    link: function (path, to) {
         assert.is(arguments, [P.Absolute, P.Absolute]);
         this.assertWriteable(path);
         if (this.exists(path)) this.err(path, "file exists");
@@ -398,17 +390,11 @@ FS.delegateMethods(LSFS.prototype, {
     getURL: function (path) {
         return this.getContent(path).toURL();
     },
-    opendirEx: function (path, options) {
+    opendirEx: function (path) {
         assert.is(path, P.AbsDir);
-        options = options || {};
         var res = {};
         var d = this.getDirInfo(path);
-        if (options.includeTrashed) {
-            //console.log("INCLTR",d);
-            return d;
-        }
         for (var k in d) {
-            if (d[k].trashed) continue;
             res[k] = d[k];
         }
         return res;

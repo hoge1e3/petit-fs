@@ -1,8 +1,9 @@
 import {default as FileSystem, MetaInfo} from "./FSClass";
+export type ObserverEvent={eventType:"change"|"rename"} & MetaInfo;
 type FSTab={fs:FileSystem, mountPoint:string};
 type FSGenerator=(path:string)=>FileSystem;
 export type FSTypeName=string;
-export type ObserverHandler=(path:string, metaInfo:MetaInfo)=>void;
+export type ObserverHandler=(path:string, metaInfo:ObserverEvent)=>void;
 export type Observer={
     path:string,
     handler: ObserverHandler,

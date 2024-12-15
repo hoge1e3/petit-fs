@@ -19,7 +19,7 @@ module.exports = (env,argv)=>["esm","umd"].map((type)=>({
     // development に設定するとソースマップ有効でJSファイルが出力される
     mode: 'development',
     // メインとなるJavaScriptファイル（エントリーポイント）
-    entry: './src/vfsUtil.ts',
+    entry: './src/index.ts',
     experiments: {
     	outputModule: type==="esm",
     },

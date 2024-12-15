@@ -1,0 +1,7 @@
+<script src="../node_modules/typescript/lib/typescript.js"></script>
+<script type="module">
+    import {fakeNodeEnvironment} from "../dist/index.js";
+    fakeNodeEnvironment();
+    const ts=await import("../node_modules/typescript/lib/typescript.js");
+    console.log(    window.ts  );
+</script>

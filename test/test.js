@@ -1,10 +1,34 @@
-import {FileSystem} from "../dist/index.js";
+import {fs} from "../dist/index.js";
 
-const fs=new FileSystem();/*false, {
+/*const fs=new FileSystem()false, {
     files: {
         "/test.ts": `let x:number=123;`
     }
-});*/
+});
+function checkModuleExports(FS) {
+    const keys=new Set();
+    for (let k in FS) {
+        if (k==="default") continue;
+        keys.add(k);
+    }
+    for (let k in FS.default) {
+        if (k==="default") continue;
+        keys.add(k);
+    }
+    console.log("exported names:",keys);
+    const undefs=[];
+    for (let k of keys) {
+        if (FS[k]!==FS.default[k]) undefs.push(k);
+    }
+    if (undefs.length) {
+        console.log("Add props:", undefs.join(","));
+        throw new Error("Missing exported name");
+    }
+}
+
+fs.genExports();
+checkModuleExports(fs);*/
+
 fs.writeFileSync("/test.ts",`let x:number=123;`);
 const r=fs.readFileSync("/test.ts","utf-8");
 console.log(r);

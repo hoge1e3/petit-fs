@@ -40,13 +40,26 @@ export const os={
     EOL: "\n",
 };
 export const process={
+    __fs: undefined as FileSystem|undefined,
     _cwd: "/", 
+    __setfs(fs:FileSystem) {
+        process.__fs=fs;
+    },
     cwd():string {
         return process._cwd;
     },
     chdir(path:string) {
         if (!PathUtil.isAbsolutePath(path)) {
             path=PathUtil.rel(process._cwd,path);
+        }
+        path=PathUtil.directorify(path);
+        const fs=this.__fs;
+        if (!fs) throw new Error("fs is not set");
+        if (!fs.existsSync(path)) {
+            throw new Error(`No such file or directory: ${path}`);
+        }
+        if (!fs.statSync(path).isDirectory()) {
+            throw new Error(`Not a directory: ${path}`);
         }
         process._cwd=path;
     },
@@ -116,7 +129,10 @@ export class FileSystem {
     }
     constructor() {
     }
-
+    toAbsolutePath(path:string) {
+        if (PathUtil.isAbsolutePath(path)) return path;
+        return PathUtil.rel(process.cwd(), path);
+    }
    
     /**
      * Gets a value indicating whether the file system is read-only.
@@ -143,6 +159,7 @@ export class FileSystem {
      */
     public mountSync(mountPoint: string, resolver: FSClass|string): void {
         const rfs=getRootFS();
+        mountPoint=PathUtil.directorify(mountPoint);
         rfs.mount(mountPoint, resolver);
     }
 
@@ -150,6 +167,7 @@ export class FileSystem {
      * Recursively remove all files and directories underneath the provided path.
      */
     public rimrafSync(path: string): void {
+        path=this.toAbsolutePath(path);
         try {
             const stats = this.lstatSync(path);
             if (stats.isFile() || stats.isSymbolicLink()) {
@@ -168,22 +186,62 @@ export class FileSystem {
             throw e;
         }
     }
-    public resolveFS(path: string):FSClass{
+    public resolveFS(path: string):[FSClass, string] {
+        path=this.toAbsolutePath(path);
         const rfs=this.getRootFS();
-        return rfs.resolveFS(path)
+        const mp=this.isMountPoint(path);
+        if (mp) {
+            // The only chance that path changes /tmp -> /tmp/ (If /tmp/ is mounted as RAM disk).
+            return [mp, mp.mountPoint||"/"]; 
+        }
+        return [ rfs.resolveFS(path), path];
     }
-    public resolveLink(path: string):string {
-        const fs=this.resolveFS(path);
-        return fs.resolveLink(path);
+    public resolveLink(path: string):[FSClass,string] {
+        // This always return fs,path even if it is not exists.
+        path=this.toAbsolutePath(path);
+        /* ln -s /a/b/ /c/d/
+        // ln -s /a/b/ /c/d/
+        // resolveLink /a/b/    ->  /a/b/
+        // resolveLink /c/d/e/f -> /a/b/e/f
+        // resolveLink /c/d/non_existent -> /a/b/non_existent
+        // isLink      /c/d/    -> /a/b/
+        // isLink      /c/d/e/f -> null
+        // ln /testdir/ /ram/files
+        // resolveLink /ram/files/sub/test2.txt -> /testdir/sub/test2.txt
+        // path=/ram/files/test.txt
+        */
+        while(true) {
+            let p,fs;
+            // path=/ram/files/sub/test2.txt
+            for (p=path; p; p=PathUtil.up(p)) {
+                [fs, p]=this.resolveFS(p);
+                // p=/ram/files/ l=/testdir/
+                const ex=fs.exists(p);
+                let to=ex && fs.isLink(p);
+                if (to) {
+                    // to=/testdir/
+                    if (!PathUtil.isAbsolutePath(to)) {
+                        to=PathUtil.rel(PathUtil.up(p),to);
+                    }
+                    // p=/ram/files/  rel=sub/test2.txt
+                    const rel=PathUtil.relPath(path, p);
+                    // path=/testdir/sub/test2.txt
+                    path=PathUtil.rel(to, rel);
+                    break;
+                }
+            }
+            if (!p) return this.resolveFS(path);
+        }
     }
-    public followLink(path: string):[FSClass, string] {
+    /*public followLink(path: string):[FSClass, string] {
         const lpath=this.resolveLink(path);
-        return [this.resolveFS(lpath), lpath];
-    }
+        return [this.resolveFS(lpath)[0], lpath];
+    }*/
     /**
      * Make a directory and all of its parent paths (if they don't exist).
      */
     public mkdirpSync(path: string): void {
+        path=this.toAbsolutePath(path);
         const p=PathUtil.up(path);
         if (!p) throw new Error("Invalid path state");
         if (!this.existsSync(p)) {
@@ -200,18 +258,21 @@ export class FileSystem {
      * Determines whether a path exists.
      */
     public existsSync(path: string): boolean {
-        const fs=this.resolveFS(path);
+        path=this.toAbsolutePath(path);
+        let fs;
+        [fs,path]=this.resolveLink(path);
         // fs.exists returns false if it exists by following symlink.
-        while (!fs.exists(path)) {
-            const ppath=path;
-            // try to follow symlink
-            path=fs.resolveLink(path);
-            // if it is NOT symlink, it is actually non-existent.
-            if (path===ppath) return false;
-        }
-        return true;
+        return fs.exists(path);
     }
-
+    isMountPoint(path:string):FSClass|undefined{
+        path=PathUtil.directorify(path);
+        return this.getRootFS().fstab().find((f)=>f.mountPoint===path);
+    }
+    hasMountPoints(path:string):FSClass[] {
+        path=PathUtil.directorify(path);
+        return this.getRootFS().fstab().filter(
+            (f)=>f.mountPoint && PathUtil.up(f.mountPoint)===path);
+    }
     /**
      * Get file status. If `path` is a symbolic link, it is dereferenced.
      *
@@ -220,7 +281,7 @@ export class FileSystem {
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
     public statSync(path: string): Stats {
-        return this.lstatSync(this.resolveLink(path));
+        return this.lstatSync(this.resolveLink(path)[1]);
     }
 
 
@@ -230,7 +291,7 @@ export class FileSystem {
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
     public utimesSync(path: string, atime: Date, mtime: Date): void {
-        const [fs, fpath]=this.followLink(path);
+        const [fs, fpath]=this.resolveLink(path);
         const info=fs.getMetaInfo(fpath);
         info.lastUpdate=mtime.getTime();
         fs.setMetaInfo(fpath, info);
@@ -244,14 +305,13 @@ export class FileSystem {
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
     public lstatSync(path: string): Stats {
-        const fs=this.resolveFS(path);
-        const m=fs.getMetaInfo(path);
-        const size=(fs.isDir(path)?1:fs.size(path));
-        return meta2stat(m, fs.isDir(path), size);
+        path=this.toAbsolutePath(path);
+        const [fs,_path]=this.resolveFS(path);
+        const m=fs.getMetaInfo(_path);
+        const isd=fs.isDir(_path);
+        const size=(isd?1:fs.size(_path));
+        return meta2stat(m, isd, size);
     }
-
-    
-
     /**
      * Read a directory. If `path` is a symbolic link, it is dereferenced.
      *
@@ -260,8 +320,14 @@ export class FileSystem {
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
     public readdirSync(path: string): string[] {
-        const [fs, fpath]=this.followLink(path);
-        return fs.opendir(fpath);
+        const [fs, fpath]=this.resolveLink(path);
+        const res=[
+            ...fs.opendir(fpath), 
+            ...this.hasMountPoints(fpath).
+                map((f)=>f.mountPoint).
+                filter((p)=>p).map((p)=>PathUtil.name(p!))
+        ];
+        return res.map((p)=>PathUtil.truncSEP(p!));
     }
 
     /**
@@ -273,7 +339,8 @@ export class FileSystem {
      */
     public mkdirSync(path: string): void {
         if (this.isReadonly) throw createIOError("EROFS");
-        const [fs, fpath]=this.followLink(path);
+        path=PathUtil.directorify(path);
+        const [fs, fpath]=this.resolveLink(path);
         return fs.mkdir(fpath);
     }
 
@@ -290,7 +357,7 @@ export class FileSystem {
         if (!this.statSync(path).isDirectory()) {
             throw new Error(`${path} is not a directory`);
         }
-        const [fs, fpath]=this.followLink(path);
+        const [fs, fpath]=this.resolveLink(path);
         return fs.rm(fpath);        
         
     }
@@ -315,7 +382,7 @@ export class FileSystem {
      */
     public unlinkSync(path: string): void {
         if (this.isReadonly) throw createIOError("EROFS");
-        const [fs, fpath]=this.followLink(path);
+        const [fs, fpath]=this.resolveLink(path);
         return fs.rm(fpath);
     }
 
@@ -327,12 +394,14 @@ export class FileSystem {
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
     public renameSync(src: string, dst: string): void {
+        src=this.toAbsolutePath(src);
+        dst=this.toAbsolutePath(dst);
         if (this.isReadonly) throw createIOError("EROFS");
         if (!this.existsSync(src)) {
             throw new Error(`${src} is not exist`);
         }
-        const fs=this.resolveFS(src);
-        fs.mv(src, dst);  
+        const [fs,_src]=this.resolveLink(src);
+        fs.mv(_src, dst);  
     }
 
     /**
@@ -345,7 +414,7 @@ export class FileSystem {
     public symlinkSync(target: string, linkpath: string): void {
         if (this.isReadonly) throw createIOError("EROFS");
         if (this.isReadonly) throw createIOError("EROFS");
-        const [fs, fpath]=this.followLink(linkpath);
+        const [fs, fpath]=this.resolveLink(linkpath);
         if (!PathUtil.isAbsolutePath(target)) {
             target=PathUtil.rel(fpath, target)
         }
@@ -360,8 +429,9 @@ export class FileSystem {
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
     public realpathSync(path: string): string {
+        path=this.toAbsolutePath(path);
         path=PathUtil.normalize(path);
-        return this.resolveLink(path);
+        return this.resolveLink(path)[1];
     }
 
     /**
@@ -383,8 +453,8 @@ export class FileSystem {
      */
     public readFileSync(path: string, encoding?: BufferEncoding | null): string | Buffer; // eslint-disable-line no-restricted-syntax
     public readFileSync(path: string, encoding: BufferEncoding | null = null) { // eslint-disable-line no-restricted-syntax
-        const [fs, fpath]=this.followLink(path);
-        if (fs.isDir(path)) throw new Error(`Cannot read from directory: ${path}`);
+        const [fs, fpath]=this.resolveLink(path);
+        if (fs.isDir(fpath)) throw new Error(`Cannot read from directory: ${fpath}`);
         const c=fs.getContent(fpath);
         if (encoding) {
             return c.toPlainText();
@@ -401,8 +471,8 @@ export class FileSystem {
     // eslint-disable-next-line no-restricted-syntax
     public writeFileSync(path: string, data: string | Buffer, encoding: string | null = null): void {
         if (this.isReadonly) throw createIOError("EROFS");
-        const [fs, fpath]=this.followLink(path);
-        if (fs.isDir(path)) throw new Error(`Cannot write to directory: ${path}`);
+        const [fs, fpath]=this.resolveLink(path);
+        if (fs.isDir(fpath)) throw new Error(`Cannot write to directory: ${fpath}`);
         if (typeof data==="string") {
             fs.setContent(fpath, Content.plainText(data));
         } else {
@@ -412,8 +482,8 @@ export class FileSystem {
 
     public appendFileSync(path: string, data: string | Buffer, encoding: string | null = null): void {
         if (this.isReadonly) throw createIOError("EROFS");
-        const [fs, fpath]=this.followLink(path);
-        if (fs.isDir(path)) throw new Error(`Cannot write to directory: ${path}`);
+        const [fs, fpath]=this.resolveLink(path);
+        if (fs.isDir(fpath)) throw new Error(`Cannot write to directory: ${fpath}`);
         if (typeof data==="string") {
             fs.appendContent(fpath, Content.plainText(data));
         } else {
@@ -422,6 +492,7 @@ export class FileSystem {
     }
 
     public watch(path:string,...opts:any[]){
+        path=this.toAbsolutePath(path);
         let sec=opts.shift();
         let options:object, listener:Function;
         if(typeof sec==="function"){
@@ -436,6 +507,7 @@ export class FileSystem {
         });
     }
     public watchFile(path: string, ...opts:any[]){
+        path=this.toAbsolutePath(path);
         let sec=opts.shift();
         let options:any, listener:(old:Stats, current:Stats)=>void;
         if(typeof sec==="function"){

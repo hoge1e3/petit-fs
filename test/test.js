@@ -1,4 +1,5 @@
-import {fs} from "../dist/index.js";
+import {fs, process} from "../dist/index.js";
+window.fs=fs;
 
 /*const fs=new FileSystem()false, {
     files: {
@@ -29,13 +30,15 @@ function checkModuleExports(FS) {
 fs.genExports();
 checkModuleExports(fs);*/
 
-fs.writeFileSync("/test.ts",`let x:number=123;`);
+process.chdir("/");
+fs.writeFileSync("test.ts",`let x:number=123;`);
 const r=fs.readFileSync("/test.ts","utf-8");
 console.log(r);
-fs.appendFileSync("/test.ts","\n//HOGEFUGA");
+fs.appendFileSync("test.ts","\n//HOGEFUGA");
 console.log(fs.readFileSync("/test.ts","utf-8"));
 
 fs.mountSync("/tmp/","ram");
+process.chdir("tmp");
 /*
 fs.mountSync("/","/tmp/", {   
     // statSync(path: string): { mode: number; size: number; };
@@ -65,11 +68,10 @@ fs.mountSync("/","/tmp/", {
         };
     }
 });*/
-fs.writeFileSync("/tmp/test.txt","hogefugaaacdef");
-console.log(fs.readFileSync("/tmp/test.txt","utf-8"));
-console.log(fs.readdirSync("/"));
+fs.writeFileSync("test.txt","hogefugaaacdef");
+console.log(fs.readFileSync("test.txt","utf-8"));
+console.log(fs.readdirSync("../"));
 //console.log(fs.readFileSync("/tmp/test.txt","utf-8"));
-window.fs=fs;
 /*function traverse(link,prefix="") {
     for (let [k,v] of link) {
         console.log(prefix+"/"+k,v);

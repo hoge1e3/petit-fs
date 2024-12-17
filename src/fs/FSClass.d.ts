@@ -4,6 +4,7 @@ export default class FileSystem {
     fstype():FSTypeName;
     isReadOnly(path:string):boolean;
     resolveFS(path:string):FileSystem;
+    mountPoint?: string;
     mounted(rootFS:RootFS, mountPoint:string):void;
     inMYFS(path:string):boolean;
     getRootFS():RootFS;
@@ -21,10 +22,11 @@ export default class FileSystem {
     mv(path:string, dst:string):void;
     rm(path:string):void;
     link(path:string, to:string):void;
+    isLink(path:string):string|undefined;
     getURL(path:string):string;
     onAddObserver(path:string):void;
     isDir(path:string):boolean;
-    resolveLink(path:string):string;
+    //resolveLink(path:string):string;
 }
 export type MetaInfo={
     lastUpdate:number,

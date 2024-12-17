@@ -1,6 +1,6 @@
 import {default as FileSystem, MetaInfo} from "./FSClass";
 export type ObserverEvent={eventType:"change"|"rename"} & MetaInfo;
-type FSTab={fs:FileSystem, mountPoint:string};
+//export type FSTab={fs:FileSystem, mountPoint:string};
 type FSGenerator=(path:string)=>FileSystem;
 export type FSTypeName=string;
 export type ObserverHandler=(path:string, metaInfo:ObserverEvent)=>void;
@@ -11,7 +11,7 @@ export type Observer={
 };
 export default class RootFS {
     constructor(defaultFS: FileSystem);
-    fstab(): FSTab[];
+    fstab(): FileSystem[];
     umount(path:string):void;
     mount(path:string, fs:FileSystem|FSTypeName):void;
     resolveFS(path:string):FileSystem;

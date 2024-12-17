@@ -42,6 +42,22 @@ export const os={
 export const process={
     __fs: undefined as FileSystem|undefined,
     _cwd: "/", 
+    env: {},
+    argv: [],
+    execArgv:[],
+    pid: 0,
+    stdout: {
+        write(...a:any[]){
+            console.log(...a);
+        },
+        columns: 80,
+    },
+    memoryUsage(){
+        return {heapUsed:0};
+    },
+    exit() {
+        
+    },
     __setfs(fs:FileSystem) {
         process.__fs=fs;
     },

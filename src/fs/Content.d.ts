@@ -3,9 +3,9 @@ export type ContentBuffer=Buffer|ArrayBuffer;
 export default class Content {
     static plainText(text:string, contentType?:string):Content;
     static url(url:string):Content;
-    static bin(bin:ContentBuffer):Content;
+    static bin(bin:ContentBuffer, contentType: string):Content;
     toURL():string;
-    toBin():ContentBuffer;
+    toBin(binType?:typeof Buffer|typeof ArrayBuffer):ContentBuffer;
     toArrayBuffer():ArrayBuffer;
     toNodeBuffer():Buffer;
     toPlainText():string;

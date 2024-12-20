@@ -14,6 +14,7 @@ export default class FileSystem {
     appendContent(path:string, content:Content):void;
     getMetaInfo(path:string):MetaInfo;
     setMetaInfo(path:string, info:MetaInfo):void;
+    getContentType(path:string):string;
     mkdir(path:string):void;
     touch(path:string):void;
     exists(path:string):boolean;

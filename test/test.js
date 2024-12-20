@@ -36,6 +36,12 @@ const r=fs.readFileSync("/test.ts","utf-8");
 console.log(r);
 fs.appendFileSync("test.ts","\n//HOGEFUGA");
 console.log(fs.readFileSync("/test.ts","utf-8"));
+const fd=fs.openSync("test.ts","w");
+fs.writeSync(fd,"aaaa");
+fs.writeSync(fd,"bbbb");
+fs.closeSync(fd);
+console.log(fs.readFileSync("/test.ts","utf-8"));
+
 
 fs.mountSync("/tmp/","ram");
 process.chdir("tmp");

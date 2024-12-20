@@ -4,7 +4,7 @@
 //import * as ts from "./_namespaces/ts.js";
 //import * as vpath from "./vpathUtil";
 //import * as core from "./core";
-//import {Buffer} from "buffer";
+import {Buffer} from "buffer";
 //import {getRootFS, RootFS, FileSystem as FSClass, PathUtil, MetaInfo} from "@hoge1e3/fs";
 import { getRootFS } from "./fs";
 import Content from "./fs/Content";
@@ -135,11 +135,17 @@ function meta2stat(m:MetaInfo, isDir: boolean, size: number):Stats {
 
     }
 }
+export type FdEntry={
+    buffer: Buffer;
+    offset: number;
+    close: ()=>void;
+}
 /**
  * Represents a virtual POSIX-like file system.
  */
 export class FileSystem {
-    
+    fdseq=1;
+    fdEntries=new Map<number, FdEntry>();
     getRootFS():RootFS{
         return getRootFS();
     }
@@ -492,8 +498,16 @@ export class FileSystem {
         if (typeof data==="string") {
             fs.setContent(fpath, Content.plainText(data));
         } else {
-            fs.setContent(fpath, Content.bin(data));
+            fs.setContent(fpath, Content.bin(data, fs.getContentType(path)));
         }
+    }
+    public writeSync(fd:number, data: string | Buffer, encoding: string | null = null):void {
+        const e=this.fdEntries.get(fd);
+        if (!e) throw new Error("Invalid fd");
+        const adata=(typeof data==="string"?
+            Content.plainText(data).toBin(Buffer) as Buffer:data);
+        e.buffer=Buffer.concat([e.buffer, adata]);
+
     }
 
     public appendFileSync(path: string, data: string | Buffer, encoding: string | null = null): void {
@@ -503,7 +517,7 @@ export class FileSystem {
         if (typeof data==="string") {
             fs.appendContent(fpath, Content.plainText(data));
         } else {
-            fs.appendContent(fpath, Content.bin(data));
+            fs.appendContent(fpath, Content.bin(data, fs.getContentType(path)));
         }
     }
 
@@ -544,7 +558,27 @@ export class FileSystem {
         }
         setInterval(loop,inter);
     }
-    
+    openSync(path:string, mode:string) {
+        path=this.toAbsolutePath(path);
+        const fd=this.fdseq++;
+        if (mode=="w"||mode=="a") {
+            const buffer=mode=="a"?this.readFileSync(path):Buffer.alloc(0);
+            const entry={
+                offset: 0,
+                buffer, close:()=>this.writeFileSync(path, entry.buffer)
+            }
+            this.fdEntries.set(fd,entry);    
+        } else {
+            throw new Error(`Unsupported mode ${mode}`);
+        }
+        return fd;
+    }
+    closeSync(fd:number) {
+        const e=this.fdEntries.get(fd);
+        if (!e) throw new Error("Invalild FD");
+        e.close();
+        this.fdEntries.delete(fd);
+    }
 
 }
 

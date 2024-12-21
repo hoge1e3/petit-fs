@@ -62,6 +62,9 @@ Content.bin=function (bin, contentType) {
 Content.looksLikeDataURL=function (text) {
     return text.match(/^data:/);
 };
+Content.isArrayBuffer=function (buf) {
+    return typeof buf.byteLength==="number" && typeof buf.length!=="number" && !buf.buffer;
+};
 //Content.download=saveAs;
 // why blob is not here... because blob content requires FileReader (cannot read instantly!)
 //------- methods

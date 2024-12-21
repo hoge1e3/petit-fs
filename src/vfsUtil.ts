@@ -13,6 +13,10 @@ import PathUtil from "./fs/PathUtil";
 import RootFS, { ObserverEvent, ObserverHandler } from "./fs/RootFS";
 
 export const path={
+    toAbsolute(path:string) {
+        if (PathUtil.isAbsolutePath(path)) return path;
+        return PathUtil.rel(process.cwd(),path);
+    },
     basename(path:string, ext?:string):string{
         let res=PathUtil.name(path);
         if (ext) {
@@ -20,13 +24,32 @@ export const path={
         }
         return res;
     },
+    resolve(head:string, ...rest:string[]) {
+        return this.join(this.toAbsolute(head),...rest);
+    },
     join(...paths:string[]) {
         if (paths.length==0) throw new Error(`empty paths`);
         let res=paths.shift() as string;
-        while(paths.length) {
-            res=PathUtil.rel(res, paths.shift() as string);
+        let base;
+        if (!PathUtil.isAbsolutePath(res)) {
+            base=process.cwd();
+            res=PathUtil.rel(base, res);
+        }
+        while(true) {
+            const p=paths.shift();
+            if (!p) break;
+            res=PathUtil.directorify(res);
+            res=PathUtil.rel(res, p);
+        }
+        if (base) {
+            res=PathUtil.relPath(res,base);
         }
         return res;
+    },
+    relative(from:string, to:string) {
+        from=this.toAbsolute(from);
+        to=this.toAbsolute(to);
+        return PathUtil.relPath(to,PathUtil.directorify(from));
     },
     dirname(path:string) {
         return PathUtil.up(path);

@@ -4,6 +4,7 @@ export default class Content {
     static plainText(text:string, contentType?:string):Content;
     static url(url:string):Content;
     static bin(bin:ContentBuffer, contentType: string):Content;
+    static isArrayBuffer(buf:ArrayBuffer|Buffer): buf is ArrayBuffer;
     toURL():string;
     toBin(binType?:typeof Buffer|typeof ArrayBuffer):ContentBuffer;
     toArrayBuffer():ArrayBuffer;

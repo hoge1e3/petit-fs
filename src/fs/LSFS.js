@@ -293,6 +293,7 @@ FS.delegateMethods(LSFS.prototype, {
         var res = []; //this.dirFromFstab(path);
         for (var i in inf) {
             assert(inf[i]);
+            if (inf[i].trashed) continue;
             res.push(i);
         }
         return assert.is(res, Array);
@@ -323,10 +324,12 @@ FS.delegateMethods(LSFS.prototype, {
         var parent = P.up(path);
         if (parent == null || !this.inMyFS(parent)) return true;
         var pinfo = this.getDirInfo(parent);
-        var res = pinfo[name];
-        if (res) return true;
+        let res = pinfo[name];
+        if (res && !res.trashed) return true;
         if (P.isDir(path)) return false;
-        return !!pinfo[name+"/"];
+        res=pinfo[name+"/"];
+        if (res && !res.trashed) return true;
+        return false;
     },
     isDir(path){
         assert.is(arguments, [Absolute]);

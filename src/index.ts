@@ -2,6 +2,7 @@ import { FileSystem, os, path, process as proc } from "./vfsUtil";
 export const fs=new FileSystem();
 proc.__setfs(fs);
 export {process, os, path} from "./vfsUtil";
+export {Buffer} from "buffer";
 export const require=(module: string):any=>{
     if (module==="fs") return fs;
     if (module==="os") return os;

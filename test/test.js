@@ -1,6 +1,6 @@
-import {fs, process, path} from "../dist/index.js";
+import {fs, process, path, Buffer} from "../dist/index.js";
 window.fs=fs;
-window.pfs={fs, process, path};
+window.pfs={fs, process, path, Buffer};
 
 process.chdir("/");
 fs.writeFileSync("test.ts",`let x:number=123;`);

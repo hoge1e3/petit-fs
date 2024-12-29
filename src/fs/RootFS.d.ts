@@ -17,4 +17,5 @@ export default class RootFS {
     resolveFS(path:string):FileSystem;
     addObserver(path:string, handler: ObserverHandler):Observer;
     notifyChanged(path:string, metaInfo:MetaInfo):void;
+    availFSTypes():{[key:FSTypeName]: FSGenerator};
 }

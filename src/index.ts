@@ -3,6 +3,9 @@ export const fs=new FileSystem();
 proc.__setfs(fs);
 export {process, os, path} from "./vfsUtil";
 export {Buffer} from "buffer";
+export {default as PathUtil} from "./fs/PathUtil";
+export {default as Content} from "./fs/Content";
+export {getRootFS} from "./fs";
 export const require=(module: string):any=>{
     if (module==="fs") return fs;
     if (module==="os") return os;

@@ -169,10 +169,12 @@ PathUtil={
         return ps.join(SEP)+SEP;
     }
 };
-["directorify", "filify", "splitPath", "name", "rel", "relPath", "up"].forEach(function (k) {
-    var old=PathUtil[k];
-    PathUtil[k]=function () {
-        var backslashifyAfter=false;
+["directorify", "filify", "splitPath", "name", "rel", "relPath", "up"].forEach((k)=>{
+    const old=PathUtil[k];
+    PathUtil[k]=function (...args) {
+        const a=args.map((e)=>PathUtil.fixSep(e));
+        return old.apply(PathUtil,a);
+        /*var backslashifyAfter=false;
         var a=Array.prototype.slice.call(arguments).map(function (e) {
             if (PathUtil.hasBackslashSep(e)) {
                 backslashifyAfter=true;
@@ -186,7 +188,7 @@ PathUtil={
             return PathUtil.fixSep(res,"\\");
         } else {
             return res;
-        }
+        }*/
     };
 });
 

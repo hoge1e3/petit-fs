@@ -12,16 +12,21 @@ const outputs={
     libraryTarget: 'umd',
     path: `${__dirname}/dist`,
     filename: "index.umd.js",
-  }
+  },
+  test: {
+    libraryTarget: 'module',
+    path: `${__dirname}/test`,
+    filename: "test.webpack.js",
+  },
 };
-module.exports = (env,argv)=>["esm","umd"].map((type)=>({
+module.exports = (env,argv)=>["esm","umd","test"].map((type)=>({
     // モード値を production に設定すると最適化された状態で、
     // development に設定するとソースマップ有効でJSファイルが出力される
     mode: 'development',
     // メインとなるJavaScriptファイル（エントリーポイント）
-    entry: './src/index.ts',
+    entry: (type==="test"? './test/test.ts': './src/index.ts'),
     experiments: {
-    	outputModule: type==="esm",
+    	outputModule: type!=="umd",
     },
     output: outputs[type],
     module: {

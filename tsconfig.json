@@ -13,6 +13,6 @@
       // 厳密モードとして設定
       "declaration": true,
       "strict": true,
-      "outDir":"./js"
+      //"outDir":"./js"
     }
   }

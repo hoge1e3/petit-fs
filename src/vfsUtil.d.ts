@@ -1,7 +1,8 @@
 import { Buffer } from "buffer";
-import FSClass from "./fs/FSClass";
-import RootFS from "./fs/RootFS";
+import FSClass, { Dirent } from "./fs/FSClass.js";
+import RootFS from "./fs/RootFS.js";
 export declare const path: {
+    isAbsolute(path: string): boolean;
     toAbsolute(path: string): string;
     basename(path: string, ext?: string): string;
     resolve(head: string, ...rest: string[]): string;
@@ -17,9 +18,11 @@ export declare const os: {
 export declare const process: {
     __fs: FileSystem | undefined;
     _cwd: string;
-    env: {};
-    argv: never[];
-    execArgv: never[];
+    env: {
+        [key: string]: string;
+    };
+    argv: string[];
+    execArgv: string[];
     pid: number;
     stdout: {
         write(...a: any[]): void;
@@ -71,6 +74,7 @@ export declare class FileSystem {
     rimrafSync(path: string): void;
     resolveFS(path: string): [FSClass, string];
     resolveLink(path: string): [FSClass, string];
+    resolveParentLink(path: string): [FSClass, string];
     /**
      * Make a directory and all of its parent paths (if they don't exist).
      */
@@ -103,6 +107,7 @@ export declare class FileSystem {
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
     lstatSync(path: string): Stats;
+    readlinkSync(path: string): string;
     /**
      * Read a directory. If `path` is a symbolic link, it is dereferenced.
      *
@@ -111,6 +116,9 @@ export declare class FileSystem {
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
     readdirSync(path: string): string[];
+    readdirSync(path: string, opt: {
+        withFileTypes: true;
+    }): Dirent[];
     /**
      * Make a directory.
      *
@@ -126,7 +134,13 @@ export declare class FileSystem {
      *
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
-    rmdirSync(path: string): void;
+    rmdirSync(path: string, options?: {
+        recursive?: boolean;
+    }): void;
+    rmSync(path: string, options?: {
+        recursive?: boolean;
+        force?: boolean;
+    }): void;
     /**
      * Link one file to another file (also known as a "hard link").
      *
@@ -193,7 +207,9 @@ export declare class FileSystem {
     writeFileSync(path: string, data: string | Buffer, encoding?: string | null): void;
     writeSync(fd: number, data: string | Buffer, encoding?: string | null): void;
     appendFileSync(path: string, data: string | Buffer, encoding?: string | null): void;
-    watch(path: string, ...opts: any[]): void;
+    watch(path: string, ...opts: any[]): {
+        close: () => void;
+    };
     watchFile(path: string, ...opts: any[]): void;
     openSync(path: string, mode: string): number;
     closeSync(fd: number): void;

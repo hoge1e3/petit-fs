@@ -15,6 +15,8 @@ FS.availFSTypes = function () {
 function stub(n) {
     throw new Error(n + " is STUB!");
 }
+
+
 extend(FS.prototype, {
     err: function (path, mesg) {
         throw new Error(path + ": " + mesg);
@@ -38,7 +40,7 @@ extend(FS.prototype, {
         this.mountPoint = mountPoint;
     },
     inMyFS: function (path) {
-        return !this.mountPoint || P.startsWith(path, this.mountPoint);
+        return !this.mountPoint || P.startsWith(P.truncSEP(path), P.truncSEP(this.mountPoint));
     },
     /*dirFromFstab: function (path, options) {
         assert.is(path, P.AbsDir);
@@ -162,7 +164,7 @@ FS.delegateMethods = function (prototype, methods) {
     }
     for (var n in methods) w(n);
 };
-FS.delegateMethods(FS.prototype, {
+/*FS.delegateMethods*/Object.assign(FS.prototype, {
     assertWriteable: function (path) {
         if (this.isReadOnly(path)) this.err(path, "read only.");
     },

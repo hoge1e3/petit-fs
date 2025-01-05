@@ -6,13 +6,17 @@
 //import * as core from "./core";
 import {Buffer} from "buffer";
 //import {getRootFS, RootFS, FileSystem as FSClass, PathUtil, MetaInfo} from "@hoge1e3/fs";
-import { getRootFS } from "./fs";
-import Content from "./fs/Content";
-import FSClass, { MetaInfo } from "./fs/FSClass";
-import PathUtil from "./fs/PathUtil";
-import RootFS, { ObserverEvent, ObserverHandler } from "./fs/RootFS";
+import { getRootFS } from "./fs/index.js";
+import Content from "./fs/Content.js";
+import FSClass, { Dirent, MetaInfo } from "./fs/FSClass.js";
+import PathUtil from "./fs/PathUtil.js";
+import RootFS, { ObserverEvent, ObserverHandler } from "./fs/RootFS.js";
+import { isAbsolute } from "path";
 
 export const path={
+    isAbsolute(path:string) {
+        return PathUtil.isAbsolutePath(path);
+    },
     toAbsolute(path:string) {
         if (PathUtil.isAbsolutePath(path)) return path;
         return PathUtil.rel(process.cwd(),path);
@@ -20,9 +24,9 @@ export const path={
     basename(path:string, ext?:string):string{
         let res=PathUtil.name(path);
         if (ext) {
-            return PathUtil.truncExt(res,ext);
+            return PathUtil.truncSEP(PathUtil.truncExt(res,ext));
         }
-        return res;
+        return PathUtil.truncSEP(res);
     },
     resolve(head:string, ...rest:string[]) {
         return this.join(this.toAbsolute(head),...rest);
@@ -58,6 +62,7 @@ export const path={
         return PathUtil.ext(path);
     }
 };
+const pathlib=path;
 export const os={
     platform:()=>"browser",
     EOL: "\n",
@@ -65,10 +70,10 @@ export const os={
 export const process={
     __fs: undefined as FileSystem|undefined,
     _cwd: "/", 
-    env: {},
-    argv: [],
-    execArgv:[],
-    pid: 0,
+    env: {} as {[key:string]:string},
+    argv: [] as string[],
+    execArgv:[] as string[],
+    pid: 0 as number,
     stdout: {
         write(...a:any[]){
             console.log(...a);
@@ -123,7 +128,22 @@ let inoCount = 0; // A monotonically increasing count of inodes
 export const timeIncrements = 1000;
 const dummyCTime=new Date();
 const dummyCTimeMs=dummyCTime.getTime();
-function meta2stat(m:MetaInfo, isDir: boolean, size: number):Stats {
+function meta2dirent(parentPath:string, name:string, m:MetaInfo):Dirent {
+    const dir=name.endsWith("/");
+    return {
+        name: PathUtil.truncSEP(name),
+        parentPath: PathUtil.truncSEP(parentPath),
+        isFile: ()=>!dir,
+        isDirectory: ()=>dir,
+        isBlockDevice: ()=>false,
+        isCharacterDevice: ()=>false,
+        isSymbolicLink: ()=>!!m.link,
+        isFIFO: ()=>false,
+        isSocket: ()=>false,
+        extra: m,
+    };
+}
+function meta2stat(m:MetaInfo, isDir: boolean, sizeF: ()=>number):Stats {
     const timeMs=m.lastUpdate;
     const time=new Date(timeMs);
     const dummyATime=new Date();
@@ -137,8 +157,9 @@ function meta2stat(m:MetaInfo, isDir: boolean, size: number):Stats {
         ctimeMs: dummyCTimeMs,
         mtime: time,
         mtimeMs: timeMs,
-        
-        blksize: size,
+        get blksize() {
+            return sizeF();
+        },
         blocks: 1,
         dev: ++devCount,
         ino: ++inoCount,
@@ -146,16 +167,17 @@ function meta2stat(m:MetaInfo, isDir: boolean, size: number):Stats {
         uid: 0,
         mode: 0o777,
         rdev: 0,
-        isBlockDevice: ()=>true,
+        isBlockDevice: ()=>false,
         isDirectory: ()=>isDir,
         isSymbolicLink: ()=>!!m.link,
         isCharacterDevice: ()=>false,
-        isFile:()=>true,
+        isFile:()=>!isDir,
         isFIFO:()=>false,
         isSocket:()=>false,
         nlink: 1,
-        size,
-
+        get size(){
+            return sizeF();
+        },
     }
 }
 export type FdEntry={
@@ -220,7 +242,7 @@ export class FileSystem {
             }
             else if (stats.isDirectory()) {
                 for (const file of this.readdirSync(path)) {
-                    this.rimrafSync(PathUtil.rel(path, file));
+                    this.rimrafSync(pathlib.join(path, file));
                 }
                 this.rmdirSync(path);
             }
@@ -277,6 +299,12 @@ export class FileSystem {
             }
             if (!p) return this.resolveFS(path);
         }
+    }
+    /* Used when refers to link itself, (on unlink etc) */
+    public resolveParentLink(path: string):[FSClass,string] {
+        const dir=PathUtil.up(path);
+        const [fs, _dir]=this.resolveLink(dir);
+        return [fs, PathUtil.rel(_dir, PathUtil.name(path))];
     }
     /*public followLink(path: string):[FSClass, string] {
         const lpath=this.resolveLink(path);
@@ -354,8 +382,14 @@ export class FileSystem {
         const [fs,_path]=this.resolveFS(path);
         const m=fs.getMetaInfo(_path);
         const isd=fs.isDir(_path);
-        const size=(isd?1:fs.size(_path));
+        const size=()=>(isd?1:fs.size(_path));
         return meta2stat(m, isd, size);
+    }
+    public readlinkSync(path: string): string {
+        const [fs, fpath]=this.resolveLink(path);
+        const m=fs.getMetaInfo(fpath);
+        if (!m.link) throw new Error(path+": Not a symbolic link");
+        return m.link;
     }
     /**
      * Read a directory. If `path` is a symbolic link, it is dereferenced.
@@ -364,8 +398,13 @@ export class FileSystem {
      *
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
-    public readdirSync(path: string): string[] {
+    public readdirSync(path: string): string[];
+    public readdirSync(path: string, opt:{withFileTypes:true}): Dirent[];
+    public readdirSync(path: string, opt:{withFileTypes:boolean}={withFileTypes:false}): string[]|Dirent[] {
         const [fs, fpath]=this.resolveLink(path);
+        if (opt.withFileTypes) {
+            return fs.opendirent(fpath);
+        }
         const res=[
             ...fs.opendir(fpath), 
             ...this.hasMountPoints(fpath).
@@ -374,7 +413,6 @@ export class FileSystem {
         ];
         return res.map((p)=>PathUtil.truncSEP(p!));
     }
-
     /**
      * Make a directory.
      *
@@ -397,14 +435,22 @@ export class FileSystem {
      *
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
-    public rmdirSync(path: string): void {
+    public rmdirSync(path: string, options?:{recursive?:boolean}): void {
         if (this.isReadonly) throw createIOError("EROFS");
         if (!this.statSync(path).isDirectory()) {
             throw new Error(`${path} is not a directory`);
         }
-        const [fs, fpath]=this.resolveLink(path);
-        return fs.rm(fpath);        
-        
+        if (options?.recursive) {
+            return this.rimrafSync(path);
+        }
+        const [fs, fpath]=this.resolveParentLink(path);
+        return fs.rm(fpath);           
+    }
+    public rmSync(path: string, options?:{recursive?:boolean, force?:boolean}): void {
+        if (options?.recursive) {
+            return this.rimrafSync(path);
+        }
+        return this.unlinkSync(path);           
     }
 
     /**
@@ -427,7 +473,7 @@ export class FileSystem {
      */
     public unlinkSync(path: string): void {
         if (this.isReadonly) throw createIOError("EROFS");
-        const [fs, fpath]=this.resolveLink(path);
+        const [fs, fpath]=this.resolveParentLink(path);
         return fs.rm(fpath);
     }
 
@@ -445,7 +491,7 @@ export class FileSystem {
         if (!this.existsSync(src)) {
             throw new Error(`${src} is not exist`);
         }
-        const [fs,_src]=this.resolveLink(src);
+        const [fs,_src]=this.resolveParentLink(src);
         fs.mv(_src, dst);  
     }
 
@@ -555,9 +601,12 @@ export class FileSystem {
             options=sec||{};
             listener=opts.shift();
         }
-        getRootFS().addObserver(path,function (_path:string, meta:ObserverEvent) {
+        const ob=getRootFS().addObserver(path,function (_path:string, meta:ObserverEvent) {
             listener(meta.eventType, PathUtil.relPath(_path,path), meta );
         });
+        return {
+            close:()=>ob.remove()
+        };
     }
     public watchFile(path: string, ...opts:any[]){
         path=this.toAbsolutePath(path);
@@ -672,7 +721,6 @@ export function createResolver(host: FileSystemResolverHost): FileSystemResolver
         },
     };
 }
-
 
 export class Stats {
     public dev: number;

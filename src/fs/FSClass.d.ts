@@ -1,5 +1,19 @@
 import { default as RootFS, FSTypeName } from "./RootFS";
 import Content from "./Content";
+import { Dir } from "fs";
+export type Dirent={
+    name: string;
+    parentPath?: string;
+    isFile(): boolean;
+    isDirectory(): boolean;
+    isBlockDevice(): boolean;
+    isCharacterDevice(): boolean;
+    isSymbolicLink(): boolean;
+    isFIFO(): boolean;
+    isSocket(): boolean;
+    extra?: any;
+}
+
 export default class FileSystem {
     fstype():FSTypeName;
     isReadOnly(path:string):boolean;
@@ -19,6 +33,7 @@ export default class FileSystem {
     touch(path:string):void;
     exists(path:string):boolean;
     opendir(path:string):string[];
+    opendirent(path:string):Dirent[];
     cp(path:string, dst:string):void;
     mv(path:string, dst:string):void;
     rm(path:string):void;

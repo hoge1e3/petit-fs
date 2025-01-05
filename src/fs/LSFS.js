@@ -10,7 +10,7 @@ var LSFS = function (storage, options) {
     assert(storage, " new LSFS fail: no storage");
     this.storage = storage;
     this.options = options || {};
-    if (this.options.useDirCache) this.dirCache = {};
+    /*if (this.options.useDirCache) */this.dirCache = {};
 };
 var isDir = P.isDir.bind(P);
 var up = P.up.bind(P);
@@ -22,11 +22,26 @@ var SEP = P.SEP;
 function now() {
     return new Date().getTime();
 }
+LSFS.meta2dirent=function (parentPath/*:string*/, name/*:string*/, m/*:MetaInfo*/)/*:Dirent*/ {
+    const dir=name.endsWith("/");
+    return {
+        name: P.truncSEP(name),
+        parentPath: P.truncSEP(parentPath),
+        isFile: ()=>!dir,
+        isDirectory: ()=>dir,
+        isBlockDevice: ()=>false,
+        isCharacterDevice: ()=>false,
+        isSymbolicLink: ()=>!!m.link,
+        isFIFO: ()=>false,
+        isSocket: ()=>false,
+        extra: {...m, isDirPath:dir},
+    };
+};
 LSFS.ramDisk = function (options) {
     var s = {};
     s[P.SEP] = "{}";
     options = options || {};
-    if (!("useDirCache" in options)) options.useDirCache = true;
+    /*if (!("useDirCache" in options))*/ options.useDirCache = true;
     return new LSFS(s, options);
 };
 FS.addFSType("localStorage", function (path, options) {
@@ -138,8 +153,15 @@ LSFS.prototype.removeEntry = function removeEntry(dinfo, path, name) { // path:p
         this.putDirInfo(path, dinfo, true);
     }
 };*/
+function fixSep(dinfo, name) {
+    if(!dinfo[name] && !P.isDir(name)) {
+        name=P.directorify(name);
+    }
+    return name;
+}
 LSFS.prototype.removeEntry/*WithoutTrash*/ = function (dinfo, path, name) { // path:path of dinfo
     assert.is(arguments, [Object, String, String]);
+    name=fixSep(dinfo, name);
     if (dinfo[name]) {
         delete dinfo[name];
         this.getRootFS().notifyChanged(P.rel(path, name), { eventType: "delete" });
@@ -263,8 +285,8 @@ FS.delegateMethods(LSFS.prototype, {
         var name = P.name(path);
         assert.is(parent, P.AbsDir);
         var pinfo = this.getDirInfo(parent);
-        if (pinfo[name]) return pinfo[name];
-        return assert(pinfo[name+"/"], `${path} does not exist.`);
+        name=fixSep(pinfo, name);
+        return assert(pinfo[name],`${path} does not exist.`);
     },
     setMetaInfo: function (path, info) {
         assert.is(arguments, [String, Object]);
@@ -295,6 +317,18 @@ FS.delegateMethods(LSFS.prototype, {
             assert(inf[i]);
             if (inf[i].trashed) continue;
             res.push(i);
+        }
+        return assert.is(res, Array);
+    },
+    opendirent(path) {
+        assert.is(arguments, [String]);
+        //succ: iterator<string> // next()
+        const inf = this.getDirInfo(path);
+        const res = []; 
+        for (let i in inf) {
+            assert(inf[i]);
+            if (inf[i].trashed) continue;
+            res.push(LSFS.meta2dirent(path, i, inf[i]));
         }
         return assert.is(res, Array);
     },

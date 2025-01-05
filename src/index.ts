@@ -1,11 +1,11 @@
-import { FileSystem, os, path, process as proc } from "./vfsUtil";
+import { FileSystem, os, path, process as proc } from "./vfsUtil.js";
 export const fs=new FileSystem();
 proc.__setfs(fs);
-export {process, os, path} from "./vfsUtil";
+export {process, os, path} from "./vfsUtil.js";
 export {Buffer} from "buffer";
-export {default as PathUtil} from "./fs/PathUtil";
-export {default as Content} from "./fs/Content";
-export {getRootFS} from "./fs";
+export {default as PathUtil} from "./fs/PathUtil.js";
+export {default as Content} from "./fs/Content.js";
+export {getRootFS} from "./fs/index.js";
 export const require=(module: string):any=>{
     if (module==="fs") return fs;
     if (module==="os") return os;

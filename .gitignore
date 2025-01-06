@@ -2,3 +2,10 @@
 dist/index.js
 dist/index.umd.js
 .vscode
+test/test.js.map
+test/test.js
+src/vfsUtil.js
+src/vfsUtil.js.map
+src/vfsUtil.d.ts
+test/test.webpack.js
+package-lock.json

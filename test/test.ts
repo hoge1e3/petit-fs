@@ -62,6 +62,7 @@ let pass:number=0;
 //let testf: SFile;
 const cleanups=[] as Function[];
 try {
+    Error.stackTraceLimit = Infinity;
     const FS=new FileSystemFactory({
         fs:   fs as unknown as typeof import("fs"),
         path: path as unknown as typeof import("path"),
@@ -136,7 +137,8 @@ try {
         const pushtn=(f:SFile)=>tncnt.push(f.relPath(romd));
         romd.recursive(pushtn, { 
             // Notice: f.ext() !== ".tonyu" only does not work since it skips directories (and *.tonyu file its subdirectories).
-            excludes:(f:SFile)=>(!f.isDir() && f.ext() !== ".tonyu")
+            excludes:(f:SFile)=>(!f.isDir() && f.ext() !== ".tonyu"),
+            cacheMeta: true,
         });
         _console.log(".tonyu files in ", romd, tncnt);
         assert.eq(tncnt.length, 46, "tncnt");
@@ -145,13 +147,14 @@ try {
         romd.recursive(pushtn, { 
             excludes:(f:SFile)=>!f.isDir(),
             includeDir:true,
+            cacheMeta: true,
         });
         _console.log("directories in ", romd, tncnt);
         assert.eq(tncnt.length, 9, "tncnt");
 
         tncnt = [];
         let exdirs = ["physics/", "event/", "graphics/"];
-        romd.recursive(pushtn, { excludes: exdirs });
+        romd.recursive(pushtn, { excludes: exdirs, cacheMeta: true,});
         _console.log("files in ", romd+" except", exdirs, tncnt);
         assert.eq(tncnt.length, 33, "tncnt");
         checkGetDirTree(romd);
@@ -429,7 +432,7 @@ function chkRecur(dir:SFile, options:DirectoryOptions, result:string[]) {
     const di = [] as string[];
     dir.recursive(function (f) {
         di.push(f.relPath(dir));
-    }, options);
+    }, {...options, cacheMeta: true,});
     eqa(di, result);
     let t = dir.getDirTree({excludes:options.excludes,style:"flat-relative"});
     _console.log("getDirTree",dir, t);

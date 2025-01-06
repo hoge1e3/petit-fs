@@ -22,7 +22,7 @@ export default class PathUtil {
     static truncExt(path:string, ext?:string):string;
     static truncSEP(path:string):string;
     static parent(path:string):string;
-    static up(path:string):string;
+    static up(path:string):string|undefined;
     static rel(path:string, relPath:string):string;
     static relPath(path:string, base:string):string;
 }

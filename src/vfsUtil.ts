@@ -253,7 +253,7 @@ export class FileSystem {
             throw e;
         }
     }
-    public resolveFS(path: string):[FSClass, string] {
+    private resolveFS(path: string):[FSClass, string] {
         path=this.toAbsolutePath(path);
         const rfs=this.getRootFS();
         const mp=this.isMountPoint(path);
@@ -283,12 +283,12 @@ export class FileSystem {
             for (p=path; p; p=PathUtil.up(p)) {
                 [fs, p]=this.resolveFS(p);
                 // p=/ram/files/ l=/testdir/
-                const ex=fs.exists(p);
+                const ex=fs.exists(p);//false if path is existent only by follwing symlink
                 let to=ex && fs.isLink(p);
                 if (to) {
                     // to=/testdir/
                     if (!PathUtil.isAbsolutePath(to)) {
-                        to=PathUtil.rel(PathUtil.up(p),to);
+                        to=PathUtil.rel(PathUtil.up(p)!,to);
                     }
                     // p=/ram/files/  rel=sub/test2.txt
                     const rel=PathUtil.relPath(path, p);
@@ -303,13 +303,12 @@ export class FileSystem {
     /* Used when refers to link itself, (on unlink etc) */
     public resolveParentLink(path: string):[FSClass,string] {
         const dir=PathUtil.up(path);
+        if (!dir) {
+            return this.resolveLink(path);
+        }
         const [fs, _dir]=this.resolveLink(dir);
         return [fs, PathUtil.rel(_dir, PathUtil.name(path))];
     }
-    /*public followLink(path: string):[FSClass, string] {
-        const lpath=this.resolveLink(path);
-        return [this.resolveFS(lpath)[0], lpath];
-    }*/
     /**
      * Make a directory and all of its parent paths (if they don't exist).
      */
@@ -333,7 +332,7 @@ export class FileSystem {
     public existsSync(path: string): boolean {
         path=this.toAbsolutePath(path);
         let fs;
-        [fs,path]=this.resolveLink(path);
+        [fs,path]=this.resolveParentLink(path);
         // fs.exists returns false if it exists by following symlink.
         return fs.exists(path);
     }
@@ -379,7 +378,7 @@ export class FileSystem {
      */
     public lstatSync(path: string): Stats {
         path=this.toAbsolutePath(path);
-        const [fs,_path]=this.resolveFS(path);
+        const [fs,_path]=this.resolveParentLink(path);
         const m=fs.getMetaInfo(_path);
         const isd=fs.isDir(_path);
         const size=()=>(isd?1:fs.size(_path));

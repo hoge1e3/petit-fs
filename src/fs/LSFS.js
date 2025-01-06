@@ -355,15 +355,16 @@ FS.delegateMethods(LSFS.prototype, {
     exists: function (path) {
         assert.is(arguments, [Absolute]);
         var name = P.name(path);
-        var parent = P.up(path);
+        const parent = P.up(path);
         if (parent == null || !this.inMyFS(parent)) return true;
-        var pinfo = this.getDirInfo(parent);
-        let res = pinfo[name];
-        if (res && !res.trashed) return true;
+        const pinfo = this.getDirInfo(parent);
+        name=fixSep(pinfo, name);
+        const res = pinfo[name];
+        return (res && !res.trashed);/* return true;
         if (P.isDir(path)) return false;
         res=pinfo[name+"/"];
         if (res && !res.trashed) return true;
-        return false;
+        return false;*/
     },
     isDir(path){
         assert.is(arguments, [Absolute]);

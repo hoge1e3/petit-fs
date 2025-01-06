@@ -145,6 +145,7 @@ extend(FS.prototype, {
     }
 });
 //res=[]; for (var k in a) { res.push(k); } res;
+/*
 FS.delegateMethods = function (prototype, methods) {
     function w(n) {
         assert.ne(n, "inMyFS");
@@ -163,7 +164,7 @@ FS.delegateMethods = function (prototype, methods) {
         };
     }
     for (var n in methods) w(n);
-};
+};*/
 /*FS.delegateMethods*/Object.assign(FS.prototype, {
     assertWriteable: function (path) {
         if (this.isReadOnly(path)) this.err(path, "read only.");
@@ -189,7 +190,7 @@ FS.delegateMethods = function (prototype, methods) {
     },
     assertExist: function (path, options) {
         if (!this.exists(path, options)) {
-            this.err(path, ": No such " + (P.isDir(path) ? "directory" : "file"));
+            this.err(path, "No such file or directory");
         }
     },
     isDir: function (path, options) {

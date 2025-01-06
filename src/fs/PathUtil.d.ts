@@ -11,8 +11,8 @@ export default class PathUtil {
     static isAbsolutePath(path:string):boolean;
     static isDir(path:string):boolean;
     static hasBackslashSep(path:string):boolean;
-    static endsWith(path:string):boolean;
-    static startsWith(path:string):boolean;
+    static endsWith(path:string, postfix: string):boolean;
+    static startsWith(path:string, prefix:string):boolean;
 
     static fixSep(path:string):string;
     static directorify(path:string):string;

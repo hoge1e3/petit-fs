@@ -9,6 +9,10 @@ export type Observer={
     handler: ObserverHandler,
     remove():void, 
 };
+export type WatchEvent=(
+    {eventType:"create"|"change"|"rename"} & MetaInfo|
+    {eventType:"delete"} );
+
 export default class RootFS {
     constructor(defaultFS: FileSystem);
     fstab(): FileSystem[];
@@ -16,6 +20,6 @@ export default class RootFS {
     mount(path:string, fs:FileSystem|FSTypeName):void;
     resolveFS(path:string):FileSystem;
     addObserver(path:string, handler: ObserverHandler):Observer;
-    notifyChanged(path:string, metaInfo:MetaInfo):void;
+    notifyChanged(path:string, watchEvent:WatchEvent):void;
     availFSTypes():{[key:FSTypeName]: FSGenerator};
 }

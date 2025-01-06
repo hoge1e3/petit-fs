@@ -32,6 +32,8 @@ export default class FileSystem {
     mkdir(path:string):void;
     touch(path:string):void;
     exists(path:string):boolean;
+    assertExist(path:string):void;
+    assertWriteable(path:string):void;
     opendir(path:string):string[];
     opendirent(path:string):Dirent[];
     cp(path:string, dst:string):void;
@@ -42,9 +44,12 @@ export default class FileSystem {
     getURL(path:string):string;
     onAddObserver(path:string):void;
     isDir(path:string):boolean;
+    static addFSType(name:string, fsgen:(mountPoint:string, options:object)=>FileSystem):void;
+    inMyFS(path:string):boolean;
     //resolveLink(path:string):string;
 }
 export type MetaInfo={
     lastUpdate:number,
-    link: string,
+    link?: string,
+    trashed?: boolean,
 };

@@ -25,21 +25,15 @@ export declare class LSFS extends FS {
     }): LSFS;
     static now: typeof now;
     private resolveKey;
-    getItem(path: string): string;
-    setItem(path: string, value: string): void;
-    removeItem(path: string): void;
-    itemExists(path: string): boolean;
-    getDirInfo(path: string): DirInfo;
-    putDirInfo(path: string, dinfo: DirInfo, removed: boolean): void;
+    private getItem;
+    private setItem;
+    private removeItem;
+    private getDirInfo;
+    private putDirInfo;
     private _touch;
-    removeEntry(dinfo: DirInfo, path: string, name: string): void;
-    isRAM(): boolean;
+    private removeEntry;
+    private isRAM;
     fstype(): "localStorage" | "ramDisk";
-    static getUsage(): number;
-    static getCapacity(): {
-        using: number;
-        max: number;
-    };
     isReadOnly(): boolean;
     getContent(path: string): Content;
     setContent(path: string, content: Content): void;
@@ -51,10 +45,15 @@ export declare class LSFS extends FS {
     opendirent(path: string): Dirent[];
     rm(path: string): void;
     exists(path: string): boolean;
+    /** returns true even if it is nonexistent when path ends with '/' */
     isDir(path: string): boolean;
     link(path: string, to: string): void;
     isLink(path: string): string | undefined;
     touch(path: string): void;
-    getURL(path: string): string;
+    static getUsage(): number;
+    static getCapacity(): {
+        using: number;
+        max: number;
+    };
 }
 export default LSFS;

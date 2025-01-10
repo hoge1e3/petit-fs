@@ -14,39 +14,49 @@ export type Dirent={
     extra?: any;
 }
 
-export default class FileSystem {
+export default abstract class FileSystem {
     fstype():FSTypeName;
-    isReadOnly(path:string):boolean;
+    abstract isReadOnly(path:string):boolean;
     resolveFS(path:string):FileSystem;
     mountPoint?: string;
     mounted(rootFS:RootFS, mountPoint:string):void;
     inMYFS(path:string):boolean;
     getRootFS():RootFS;
-    getContent(path:string):Content;
+    abstract getContent(path:string):Content;
     size(path:string):number;
-    setContent(path:string, content:Content):void;
-    appendContent(path:string, content:Content):void;
-    getMetaInfo(path:string):MetaInfo;
-    setMetaInfo(path:string, info:MetaInfo):void;
+    abstract setContent(path:string, content:Content):void;
+    abstract appendContent(path:string, content:Content):void;
+    abstract getMetaInfo(path:string):MetaInfo;
+    abstract setMetaInfo(path:string, info:MetaInfo):void;
     getContentType(path:string):string;
-    mkdir(path:string):void;
-    touch(path:string):void;
-    exists(path:string):boolean;
+    abstract mkdir(path:string):void;
+    abstract touch(path:string):void;
+    abstract exists(path:string):boolean;
     assertExist(path:string):void;
     assertWriteable(path:string):void;
-    opendir(path:string):string[];
-    opendirent(path:string):Dirent[];
-    cp(path:string, dst:string):void;
-    mv(path:string, dst:string):void;
-    rm(path:string):void;
+    abstract opendir(path:string):string[];
+    abstract opendirent(path:string):Dirent[];
+    copyFile(path:string, dst:string):void;
+    //mv(path:string, dst:string):void;
+    abstract rm(path:string):void;
     link(path:string, to:string):void;
-    isLink(path:string):string|undefined;
-    getURL(path:string):string;
+    abstract isLink(path:string):string|undefined;
+    //getURL(path:string):string;
     onAddObserver(path:string):void;
-    isDir(path:string):boolean;
+    abstract isDir(path:string):boolean;
     static addFSType(name:string, fsgen:(mountPoint:string, options:object)=>FileSystem):void;
     inMyFS(path:string):boolean;
     //resolveLink(path:string):string;
+
+    //abstract createWalker(path:string):Walker;
+}
+export interface Walker{
+    fileSystem: FileSystem;
+    parentPath: string;
+    name: string;
+    next():Walker|undefined;
+    enter():Walker;
+    exit():Walker;
 }
 export type MetaInfo={
     lastUpdate:number,

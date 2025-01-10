@@ -98,45 +98,36 @@ extend(FS.prototype, {
         //ret: [String] || Stream<string> // https://nodejs.org/api/stream.html#stream_class_stream_readable
         stub("opendir");
     },
-    cp: function (path, dst, options) {
+    copyFile: function (path, dst, options) {
         assert.is(arguments, [P.Absolute, P.Absolute]);
         this.assertExist(path);
         options = options || {};
-        var srcIsDir = this.isDir(path);
-        var dstfs = this.getRootFS().resolveFS(dst);
-        var dstIsDir = dstfs.isDir(dst);
+        const srcIsDir = this.isDir(path);
+        const dstfs = this.getRootFS().resolveFS(dst);
+        const dstIsDir = dstfs.isDir(dst);
         if (!srcIsDir && !dstIsDir) {
-            if (this.supportsSync() && dstfs.supportsSync()) {
-                var cont = this.getContent(path);
-                var res = dstfs.setContent(dst, cont);
-                if (options.a) {
-                    dstfs.setMetaInfo(dst, this.getMetaInfo(path));
-                }
-                return res;
-            } else {
-                return dstfs.setContentAsync(
-                    dst,
-                    this.getContentAsync(path)
-                ).then(function (res) {
-                    if (options.a) {
-                        return dstfs.setMetaInfo(dst, this.getMetaInfo(path));
-                    }
-                    return res;
-                });
+            const cont = this.getContent(path);
+            const res = dstfs.setContent(dst, cont);
+            if (options.a) {
+                dstfs.setMetaInfo(dst, this.getMetaInfo(path));
             }
+            return res;
         } else {
             throw new Error("only file to file supports");
         }
     },
-    mv: function (path, to, options) {
+    /*mv: function (path, to, options) {
         this.cp(path, to, options);
         return this.rm(path, { r: true });
-    },
+    },*/
     rm: function (path, options) {
         stub("");
     },
     link: function (path, to, options) {
         throw new Error("ln " + to + " " + path + " : This FS not support link.");
+    },
+    isLink(path) {
+        stub("isLink");
     },
     getURL: function (path) {
         stub("");

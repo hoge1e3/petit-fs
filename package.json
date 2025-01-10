@@ -11,7 +11,8 @@
     "test": "npx http-server -o test/index.html"
   },
   "files": [
-    "dist", "src"
+    "dist",
+    "src"
   ],
   "repository": {
     "type": "git",
@@ -28,7 +29,7 @@
   "homepage": "https://github.com/hoge1e3/petit-fs#readme",
   "devDependencies": {
     "@eslint/js": "^9.1.1",
-    "@hoge1e3/sfile": "^1.0.6",
+    "@hoge1e3/sfile": "file:../@hoge1e3/SFile/hoge1e3-sfile-1.0.7.tgz",
     "@types/chai": "^5.0.1",
     "@types/escodegen": "^0.0.10",
     "@types/espree": "^10.0.0",

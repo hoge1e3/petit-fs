@@ -133,6 +133,7 @@ try {
         _console.log("romd", romd);
         assert(romd.rel("Actor.tonyu").text().length > 0);
         testdir.rel("sub/test2.txt").text(romd.rel("Actor.tonyu").text());
+        await testDirFileOverlap(testdir.rel("dirfile/"));
         let tncnt:string[] = [];
         const pushtn=(f:SFile)=>tncnt.push(f.relPath(romd));
         romd.recursive(pushtn, { 
@@ -242,7 +243,7 @@ try {
         _console.log("BLOB read done!", f.name(), tmp.name());
         tmp.rm();
         f.rm();
-        
+        await moveTest(testdir);
         //setTimeout(function () {location.reload();},10000);
         await asyncTest(testdir);
 
@@ -254,6 +255,10 @@ try {
             testdir = FS.get(testfn.text());
             assert(testdir.exists());
             _console.log("Enter", testdir);
+            const tmp2=testdir.rel("tmp2");
+            assert(tmp2.exists());
+            tmp2.rm({r:true});
+
             assert(testdir.rel("test.txt").text() === ABCD);
             assert(testdir.rel("sub/").exists());
             assert(testdir.rel("sub/test2.txt").text() === romd.rel("Actor.tonyu").text());
@@ -308,6 +313,38 @@ try {
     }
     //console.log("Unknown tags:", JSON.stringify(_console.unknownlist,null,2))
 }
+async function moveTest(testd:SFile) {
+    let tmp1 = testd.rel("tmp1");
+    tmp1.mkdir();
+    let tmp2 = testd.rel("tmp2");
+    //tmp2.mkdir();
+    let sub = testd.rel("sub");
+    let res1=[];
+    for (let f of sub.recursive()) {
+        res1.push(f.relPath(sub));
+    }
+    sub.copyTo(tmp1);
+    tmp1.moveTo(tmp2);
+    assert(!tmp1.exists());
+    let res2=[];
+    for (let f of tmp2.recursive()) {
+        res2.push(f.relPath(tmp2));
+    }
+    console.log("movetes",res1,res2);
+    _assert.deepStrictEqual(res1,res2);
+}
+async function testDirFileOverlap(base:SFile) {
+    base.mkdir();
+    const dir=base.rel("dir");
+    dir.mkdir();
+    const file=base.rel("file");
+    file.text("ABCD");
+    assert.ensureError(()=>dir.getContent());
+    assert.ensureError(()=>dir.text("ABCD"));
+    assert.ensureError(()=>file.listFiles());
+    base.rm({r:true});
+}
+
 /*
 async function chkBigFile(testd: SFile) {
     let cap = LSFS.getCapacity();
@@ -425,18 +462,18 @@ function contEq(a:Uint8Array|string, b:Uint8Array|string) {
     return true;
 }
 
-function eqa(a:any[],b:any[]) {
-    _assert.deepStrictEqual(a.sort().join(","),b.sort().join(","));
+function eqa(actual:any[],expected:any[]) {
+    _assert.deepStrictEqual(actual.sort().join(","),expected.sort().join(","));
 }
-function chkRecur(dir:SFile, options:DirectoryOptions, result:string[]) {
+function chkRecur(dir:SFile, options:DirectoryOptions, expected:string[]) {
     const di = [] as string[];
     dir.recursive(function (f) {
         di.push(f.relPath(dir));
     }, {...options, cacheMeta: true,});
-    eqa(di, result);
+    eqa(di, expected);
     let t = dir.getDirTree({excludes:options.excludes,style:"flat-relative"});
     _console.log("getDirTree",dir, t);
-    eqa(Object.keys(t), result);
+    eqa(Object.keys(t), expected);
 }
 function testContent() {
     let C = Content;
@@ -747,7 +784,11 @@ async function extractFixture(to:SFile){
             f.mkdir();
         } else {
             const buf = await obj.async("arraybuffer");
+            _console.log("ext-fixture", key, new Uint8Array(buf));
             f.setBytes(buf);
+            if (buf.byteLength>0 && f.size()==0){
+                throw new Error("Not size match "+f.path()+" buf="+buf.byteLength);
+            }
         }
     }
 }

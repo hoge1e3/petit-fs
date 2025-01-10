@@ -490,8 +490,46 @@ export class FileSystem {
         if (!this.existsSync(src)) {
             throw new Error(`${src} is not exist`);
         }
-        const [fs,_src]=this.resolveParentLink(src);
-        fs.mv(_src, dst);  
+        if (this.existsSync(dst)) {
+            throw new Error(`${dst} already exists`);
+        }
+        this.cpSync(src, dst, {recursive:true});
+        this.rimrafSync(src);
+    }
+    // NOTE: {cp|rename}Sync(src, dst) is equivalent to {cp|mv} [-r] src/* dst/ in UNIX. not {cp|mv} [-r] src dst
+    //        src/a.txt is always {copied|moved} to dst/a.txt, never dst/src/a.txt even dst is already a directory.
+    public cpSync(_src: string, _dst: string, {recursive}:{recursive:boolean}={recursive:false}): void { 
+        _src=this.toAbsolutePath(_src);
+        _dst=this.toAbsolutePath(_dst);
+        if (this.isReadonly) throw createIOError("EROFS");
+        if (!this.existsSync(_src)) {
+            throw new Error(`${_src} is not exist`);
+        }
+        const [dfs,dst]=this.resolveLink(_dst);
+        const [sfs,src]=this.resolveLink(_src);
+        const sstat=this.lstatSync(src);
+        if (sstat.isDirectory()) {
+            // skip if src is a symbolic link to a directory
+            const slstat=this.lstatSync(_src);
+            if (slstat.isSymbolicLink()) return;
+
+            if (!recursive) throw new Error(`${src} is a directory`);
+            dfs.mkdir(dst);
+            for (const f of this.readdirSync(src, {withFileTypes:true})) {
+                const srcp=pathlib.join(src,f.name);
+                const dstp=pathlib.join(dst,f.name);
+                if (f.isSymbolicLink()||f.isDirectory()) {
+                    this.cpSync(srcp, dstp, {recursive});
+                } else {
+                    dfs.setContent(dstp, sfs.getContent(srcp));
+                }
+            }
+        } else {
+            if (this.statSync(dst).isDirectory()) {
+                throw new Error(`${dst} is a directory`);
+            }
+            dfs.setContent(dst, sfs.getContent(src));
+        }
     }
 
     /**

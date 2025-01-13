@@ -571,6 +571,7 @@ async function checkWatch(testd:SFile) {
         "change:hogefuga.txt",
         "change:hogefuga.txt",
         "change:hogefuga.txt",
+        
         //"change:hogefuga.txt",
     ]):uniq([
         "create:hogefuga.txt",
@@ -579,6 +580,7 @@ async function checkWatch(testd:SFile) {
         "change:",
         "delete:hogefuga.txt",
         "change:",
+        'delete:hogefuga.txt', 'delete:',
         /*'rename:hogefuga.txt',
         'change:hogefuga.txt',*/
     ]))/*.join("\n")*/);//, "checkWatch");

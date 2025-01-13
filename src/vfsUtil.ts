@@ -5,13 +5,11 @@
 //import * as vpath from "./vpathUtil";
 //import * as core from "./core";
 import {Buffer} from "buffer";
-//import {getRootFS, RootFS, FileSystem as FSClass, PathUtil, MetaInfo} from "@hoge1e3/fs";
 import { getRootFS } from "./fs/index.js";
 import Content from "./fs/Content.js";
-import FSClass, { Dirent, MetaInfo } from "./fs/FSClass.js";
+import FSClass, { Dirent } from "./fs/FSClass.js";
 import PathUtil from "./fs/PathUtil.js";
 import RootFS, { ObserverEvent, ObserverHandler } from "./fs/RootFS.js";
-import { isAbsolute } from "path";
 
 export const path={
     isAbsolute(path:string) {
@@ -128,7 +126,7 @@ let inoCount = 0; // A monotonically increasing count of inodes
 export const timeIncrements = 1000;
 const dummyCTime=new Date();
 const dummyCTimeMs=dummyCTime.getTime();
-function meta2dirent(parentPath:string, name:string, m:MetaInfo):Dirent {
+/*function stat2dirent(parentPath:string, name:string, lstat:Stats):Dirent {
     const dir=name.endsWith("/");
     return {
         name: PathUtil.truncSEP(name),
@@ -140,10 +138,10 @@ function meta2dirent(parentPath:string, name:string, m:MetaInfo):Dirent {
         isSymbolicLink: ()=>!!m.link,
         isFIFO: ()=>false,
         isSocket: ()=>false,
-        extra: m,
+        extra: {lstat},
     };
-}
-function meta2stat(m:MetaInfo, isDir: boolean, sizeF: ()=>number):Stats {
+}*/
+/*function meta2stat(m:MetaInfo, isDir: boolean, sizeF: ()=>number):Stats {
     const timeMs=m.lastUpdate;
     const time=new Date(timeMs);
     const dummyATime=new Date();
@@ -179,7 +177,7 @@ function meta2stat(m:MetaInfo, isDir: boolean, sizeF: ()=>number):Stats {
             return sizeF();
         },
     }
-}
+}*/
 export type FdEntry={
     buffer: Buffer;
     offset: number;
@@ -364,9 +362,7 @@ export class FileSystem {
      */
     public utimesSync(path: string, atime: Date, mtime: Date): void {
         const [fs, fpath]=this.resolveLink(path);
-        const info=fs.getMetaInfo(fpath);
-        info.lastUpdate=mtime.getTime();
-        fs.setMetaInfo(fpath, info);
+        fs.setMtime(fpath, mtime.getTime());
     }
 
     /**
@@ -379,16 +375,14 @@ export class FileSystem {
     public lstatSync(path: string): Stats {
         path=this.toAbsolutePath(path);
         const [fs,_path]=this.resolveParentLink(path);
-        const m=fs.getMetaInfo(_path);
-        const isd=fs.isDir(_path);
-        const size=()=>(isd?1:fs.size(_path));
-        return meta2stat(m, isd, size);
+        const m=fs.lstat(_path);
+        return m;
     }
     public readlinkSync(path: string): string {
-        const [fs, fpath]=this.resolveLink(path);
-        const m=fs.getMetaInfo(fpath);
-        if (!m.link) throw new Error(path+": Not a symbolic link");
-        return m.link;
+        const [fs, fpath]=this.resolveParentLink(path);
+        const m=fs.isLink(fpath);
+        if (!m) throw new Error(path+": Not a symbolic link");
+        return m;
     }
     /**
      * Read a directory. If `path` is a symbolic link, it is dereferenced.
@@ -419,10 +413,14 @@ export class FileSystem {
      *
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
-    public mkdirSync(path: string): void {
+    public mkdirSync(path: string, {recursive}:{recursive:boolean}={recursive:false}): void {
         if (this.isReadonly) throw createIOError("EROFS");
         path=PathUtil.directorify(path);
         const [fs, fpath]=this.resolveLink(path);
+        if (recursive) {
+            const parent=PathUtil.up(fpath)!;
+            if (!this.existsSync(parent)) this.mkdirSync(parent,{recursive:true});           
+        }
         return fs.mkdir(fpath);
     }
 
@@ -582,7 +580,7 @@ export class FileSystem {
     public readFileSync(path: string, encoding?: BufferEncoding | null): string | Buffer; // eslint-disable-line no-restricted-syntax
     public readFileSync(path: string, encoding: BufferEncoding | null = null) { // eslint-disable-line no-restricted-syntax
         const [fs, fpath]=this.resolveLink(path);
-        if (fs.isDir(fpath)) throw new Error(`Cannot read from directory: ${fpath}`);
+        if (fs.lstat(fpath).isDirectory()) throw new Error(`Cannot read from directory: ${fpath}`);
         const c=fs.getContent(fpath);
         if (encoding) {
             return c.toPlainText();
@@ -600,7 +598,7 @@ export class FileSystem {
     public writeFileSync(path: string, data: string | Buffer, encoding: string | null = null): void {
         if (this.isReadonly) throw createIOError("EROFS");
         const [fs, fpath]=this.resolveLink(path);
-        if (fs.isDir(fpath)) throw new Error(`Cannot write to directory: ${fpath}`);
+        if (fs.exists(fpath) && fs.lstat(fpath).isDirectory()) throw new Error(`Cannot write to directory: ${fpath}`);
         if (typeof data==="string") {
             fs.setContent(fpath, Content.plainText(data));
         } else {
@@ -619,7 +617,7 @@ export class FileSystem {
     public appendFileSync(path: string, data: string | Buffer, encoding: string | null = null): void {
         if (this.isReadonly) throw createIOError("EROFS");
         const [fs, fpath]=this.resolveLink(path);
-        if (fs.isDir(fpath)) throw new Error(`Cannot write to directory: ${fpath}`);
+        if (fs.exists(fpath) && fs.lstat(fpath).isDirectory()) throw new Error(`Cannot write to directory: ${fpath}`);
         if (typeof data==="string") {
             fs.appendContent(fpath, Content.plainText(data));
         } else {

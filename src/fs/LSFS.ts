@@ -1,16 +1,68 @@
 //define(["FSClass","PathUtil","extend","assert","Util","Content"],
 //        function(FS,P,extend,assert,Util,Content) {
-import FS, { Dirent, MetaInfo } from "./FSClass.js";
+import FS, { Dirent } from "./FSClass.js";
 import P from "./PathUtil.js";
 import Content from "./Content.js";
 import {assert} from "chai";
-const isDir = P.isDir.bind(P);
+import { Stats, WatchEvent } from "./RootFS.js";
+//const isDir = P.isDir.bind(P);
 const up = P.up.bind(P);
-const endsWith = P.endsWith.bind(P);
+//const endsWith = P.endsWith.bind(P);
+const P_name = P.name.bind(P);
 const SEP = P.SEP;
+type StatsEx= Stats & {linkPath:string|undefined};
 function now() {
     return new Date().getTime();
 }
+const dummyCTime=new Date();
+const dummyCTimeMs=dummyCTime.getTime();
+let devCount = 0; // A monotonically increasing count of device ids
+let inoCount = 0; // A monotonically increasing count of inodes
+
+function meta2stat(m:MetaInfo, isDir: boolean, sizeF: ()=>number):StatsEx {
+    const timeMs=m.lastUpdate;
+    const time=new Date(timeMs);
+    const dummyATime=new Date();
+    const dummyATimeMs=dummyATime.getTime();
+    return {
+        linkPath: m.link,
+        atime: dummyATime,
+        atimeMs: dummyATimeMs,
+        birthtime: dummyCTime,
+        birthtimeMs: dummyCTimeMs,
+        ctime: dummyCTime,
+        ctimeMs: dummyCTimeMs,
+        mtime: time,
+        mtimeMs: timeMs,
+        get blksize() {
+            return sizeF();
+        },
+        blocks: 1,
+        dev: ++devCount,
+        ino: ++inoCount,
+        gid: 0,
+        uid: 0,
+        mode: 0o777,
+        rdev: 0,
+        isBlockDevice: ()=>false,
+        isDirectory: ()=>isDir,
+        isSymbolicLink: ()=>!!m.link,
+        isCharacterDevice: ()=>false,
+        isFile:()=>!isDir,
+        isFIFO:()=>false,
+        isSocket:()=>false,
+        nlink: 1,
+        get size(){
+            return sizeF();
+        },
+    }
+}
+
+export type MetaInfo={
+    lastUpdate:number,
+    link?: string,
+    trashed?: boolean,
+};
 export type DirInfo={[key:string]:MetaInfo};
 FS.addFSType("localStorage", function (path, options:any) {
     return new LSFS(localStorage, options);
@@ -30,8 +82,11 @@ function assertAbsoluteRegular(path:string) {
     assert(!P.isDir(path), path + " is directory path");
 }
 function fixSep(dinfo:DirInfo, name:string) {
-    if(!dinfo[name] && !P.isDir(name)) {
-        name=P.directorify(name);
+    if (P.isDir(name)) return name;
+    if (dinfo[name]) return name;
+    const dname=P.directorify(name);
+    if(dinfo[dname]) {
+        return dname;
     }
     return name;
 }
@@ -43,19 +98,20 @@ export class LSFS extends FS {
         assert(storage, " new LSFS fail: no storage");
         super()
     }
-    static meta2dirent(parentPath:string, name:string, m:MetaInfo):Dirent {
-        const dir=name.endsWith("/");
+    static meta2dirent(parentPath:string, fixedName:string, lstat:Stats):Dirent {
+        // fixedName: if the name refers to directory, it MUST end with /
+        const dir=fixedName.endsWith("/");
         return {
-            name: P.truncSEP(name),
+            name: P.truncSEP(fixedName),
             parentPath: P.truncSEP(parentPath),
             isFile: ()=>!dir,
             isDirectory: ()=>dir,
             isBlockDevice: ()=>false,
             isCharacterDevice: ()=>false,
-            isSymbolicLink: ()=>!!m.link,
+            isSymbolicLink: ()=>lstat.isSymbolicLink(),
             isFIFO: ()=>false,
             isSocket: ()=>false,
-            extra: {...m, isDirPath:dir},
+            extra: {lstat},
         };
     }
     static ramDisk(options={readOnly:false}) {
@@ -66,86 +122,113 @@ export class LSFS extends FS {
     }
     static now = now;
     //private methods
-    private resolveKey(path:string):string {
-        assertAbsolute(path);
+    private resolveKey(fixedPath:string):string {
+        assertAbsolute(fixedPath);
         if (this.mountPoint) {
-            return P.SEP + P.relPath(path, this.mountPoint);//FromMountPoint(path);
+            return P.SEP + P.relPath(fixedPath, this.mountPoint);
         } else {
-            return path;
+            return fixedPath;
         }
     };
-    private getItem(path:string) {
-        assertAbsolute(path);
-        const key = this.resolveKey(path);
-        assert(key in this.storage, `${key} in not in storage`);
+    private size(fixedPath: string){
+        return this.getItem(fixedPath).length;
+    }
+    private getItem(fixedPath:string) {
+        assertAbsolute(fixedPath);
+        const key = this.resolveKey(fixedPath);
+        assert(this.itemExists(fixedPath), `file(item) ${key} is not found.`);
         return this.storage[key];
     }
-    private setItem(path:string, value:string) {
-        assertAbsolute(path);
-        const key = this.resolveKey(path);
+    private itemExists(fixedPath:string) {
+        assertAbsolute(fixedPath);
+        const key = this.resolveKey(fixedPath);
+        return key in this.storage;
+    }
+
+    private setItem(fixedPath:string, value:string) {
+        assertAbsolute(fixedPath);
+        const key = this.resolveKey(fixedPath);
         assert(key.indexOf("..") < 0);
         assert(P.startsWith(key, P.SEP));
         this.storage[key] = value;
     }
-    private removeItem(path:string) {
-        assertAbsolute(path);
-        const key = this.resolveKey(path);
+    private removeItem(fixedPath:string) {
+        assertAbsolute(fixedPath);
+        const key = this.resolveKey(fixedPath);
+        assert(key in this.storage, `removeItem: ${key} is not in storage`);
         delete this.storage[key];
     }
     private getDirInfo(dpath:string):DirInfo {
         assertAbsoluteDir(dpath);
         assert(this.inMyFS(dpath));
-        if (this.dirCache && this.dirCache[dpath]) return this.dirCache[dpath];
-        let dinfo = {} as DirInfo, dinfos;
+        if (this.dirCache[dpath]) return this.dirCache[dpath];
+        let dinfo: DirInfo;
+        const dinfos = this.getItem(dpath);
         try {
-            dinfos = this.getItem(dpath);
-            if (dinfos) {
-                dinfo = JSON.parse(dinfos);
-            }
-        } catch (e) {
-            console.log("dinfo err : ", dpath, dinfos);
+            dinfo = JSON.parse(dinfos);
+        } catch(e) {
+            throw new Error(`Malformed JSON found in ${dpath}`);
         }
-        if (this.dirCache) this.dirCache[dpath] = dinfo;
+        this.dirCache[dpath] = dinfo;
         return dinfo;
+    }
+    private setItemWithDirCache(dpath:string, dinfo:DirInfo) {
+        this.dirCache[dpath] = dinfo;
+        this.setItem(dpath, JSON.stringify(dinfo));  
     }
     private putDirInfo(dpath:string, dinfo:DirInfo, removed:boolean) {
         assertAbsoluteDir(dpath);
         assert(this.inMyFS(dpath));
-        if (this.dirCache) this.dirCache[dpath] = dinfo;
-        this.setItem(dpath, JSON.stringify(dinfo));
         const ppath = up(dpath);
-        if (ppath == null) return;
-        if (!this.inMyFS(ppath)) {
-            return;
+        if (!ppath || !this.inMyFS(ppath)) {
+            this.setItemWithDirCache(dpath, dinfo);
+            return; 
+        }
+        if (!this.itemExists(ppath)) {
+            throw new Error(`File(item) ${ppath} not exists.`);
         }
         const pdinfo = this.getDirInfo(ppath);
-        this._touch(pdinfo, ppath, P.name(dpath), removed);
+        this.setItemWithDirCache(dpath, dinfo);
+        this._touch(pdinfo, ppath, P_name(dpath), removed);
+        if (!removed) assert(this.itemExists(dpath),  `putDirInfo: item ${dpath} not found`);
     }
-    private _touch(dinfo:DirInfo, dpath:string, name:string, removed:boolean) {
+    private _touch(dinfo:DirInfo, dpath:string, fixedName:string, removed:boolean) {
         assertAbsoluteDir(dpath);
-        // path:path of dinfo
         // removed: this touch is caused by removing the file/dir.
         assert(this.inMyFS(dpath));
-        let eventType:"change"|"create"|"rename"|"remove" = "change";
-        if (!removed && !dinfo[name]) {
-            eventType = "create";
-            dinfo[name] = {lastUpdate: now()};
-        } else if (dinfo[name]) dinfo[name].lastUpdate = now();
-        const evt = { eventType, ...(dinfo[name]||{})};
-        this.getRootFS().notifyChanged(P.rel(dpath, name), evt);
+        let evt:WatchEvent;
+        if (removed) {
+            evt={eventType:"delete"};
+        } else {
+            let eventType:"change"|"create"|"rename"|"delete" = "change";            
+            if (!dinfo[fixedName]) {
+                dinfo[fixedName] = {lastUpdate: now()};
+                eventType="create";
+            } else {
+                dinfo[fixedName].lastUpdate = now();
+            }
+            evt={ eventType,  ...meta2stat(dinfo[fixedName], P.isDir(fixedName), ()=>1/*TODO*/)};
+        }
+        this.getRootFS().notifyChanged(P.rel(dpath, fixedName), evt);
         this.putDirInfo(dpath, dinfo, removed);
     }
-    private removeEntry(dinfo:DirInfo, dpath:string, name:string) {
+    private removeEntry(dinfo:DirInfo, dpath:string, fixedName:string) {
         assertAbsoluteDir(dpath);
-        name=fixSep(dinfo, name);
-        if (dinfo[name]) {
-            delete dinfo[name];
-            this.getRootFS().notifyChanged(P.rel(dpath, name), { eventType: "delete" });
+        if (dinfo[fixedName]) {
+            delete dinfo[fixedName];
+            this.getRootFS().notifyChanged(P.rel(dpath, fixedName), { eventType: "delete" });
             this.putDirInfo(dpath, dinfo, true);
         }
     }
     private isRAM() {
         return this.storage !== localStorage;
+    }
+    private fixPath(path:string, parent:string):[DirInfo, string, string] {
+        const name=P_name(path);
+        const pinfo=this.getDirInfo(parent);
+        const fixedName=fixSep(pinfo, name);
+        const fixedPath=P.rel(parent, fixedName);
+        return [pinfo, fixedPath, fixedName];
     }
     //-----------------------------------
     public fstype() {
@@ -153,10 +236,12 @@ export class LSFS extends FS {
     }
     public isReadOnly() { return this.options.readOnly; }
     public getContent(path:string) {
-        assertAbsolute(path);
-        this.assertExist(path); // Do not use this??( because it does not follow symlinks)
+        assertAbsoluteRegular(path);
+        const stat=this.lstat(path);
+        if (stat.isDirectory()) throw new Error(`${path} is a directory.`);
+        const fixedPath=path;
         let c:Content;
-        let cs = this.getItem(path);
+        let cs = this.getItem(fixedPath);
         if (Content.looksLikeDataURL(cs)) {
             c = Content.url(cs);
         } else {
@@ -167,16 +252,21 @@ export class LSFS extends FS {
     public setContent(path:string, content: Content):void {
         assertAbsoluteRegular(path);
         this.assertWriteable(path);
+        if (this.exists(path)) {
+            const stat=this.lstat(path);
+            if (stat.isDirectory()) throw new Error(`${path} is a directory.`);    
+        }
+        const fixedPath=path;
         let t:null|string = null;
         if (content.hasPlainText()) {
             t = content.toPlainText();
             if (Content.looksLikeDataURL(t)) t = null;
         }
-        this.touch(path);// moved *1 from here since *1 overwrites the item to "" since it is not yet 'exists'
+        this.touch(fixedPath);// moved *1 from here since *1 overwrites the item to "" since it is not yet 'exists'
         if (t != null) {
-            this.setItem(path, t);
+            this.setItem(fixedPath, t);
         } else {
-            this.setItem(path, content.toURL());
+            this.setItem(fixedPath, content.toURL());
         }
         // *1
     }
@@ -185,48 +275,47 @@ export class LSFS extends FS {
         if (this.exists(path)) c = this.getContent(path).toPlainText();
         return this.setContent(path, Content.plainText(c + content.toPlainText()));
     }
-    public getMetaInfo(path:string):MetaInfo {
+    public lstat(path: string): StatsEx {
         this.assertExist(path);
         assertAbsolute(path);
         const parent = P.up(path);
         if (!parent) {
-            return {lastUpdate: this.baseTimestamp};
+            return meta2stat({lastUpdate: this.baseTimestamp},true, ()=>0);
         }
         if (!this.inMyFS(parent)) {
-            return {lastUpdate: this.baseTimestamp};
+            return meta2stat({lastUpdate: this.baseTimestamp},true, ()=>0);
         }
-        let name = P.name(path);
-        const pinfo = this.getDirInfo(parent);
-        name=fixSep(pinfo, name);
-        assert(pinfo[name],`${path} does not exist.`);
-        return pinfo[name];
+        const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
+        assert(pinfo[fixedName],`${path} does not exist.`);
+        return meta2stat(pinfo[fixedName], P.isDir(fixedName)&&!pinfo[fixedName].link, ()=>this.size(fixedPath) );
     }
-    public setMetaInfo(path:string, info:MetaInfo) {
+    public setMtime(path: string, time: number): void {
+        this.assertExist(path);
+        return this.setMetaInfo(path,{lastUpdate:time});
+    }
+    private setMetaInfo(path:string, info:MetaInfo) {
         this.assertWriteable(path);
         const parent = P.up(path);
         if (!parent || !this.inMyFS(parent)) {
             return;
         }
-        const pinfo = this.getDirInfo(parent);
-        let name = P.name(path);
-        // This prevents creating both "foo" and "foo/". 
-        if (!P.isDir(path) && !pinfo[name] && pinfo[name+"/"]) {
-            name=name+"/";
-        }
-        pinfo[name] = info;
+        const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
+        pinfo[fixedName] = info;
         this.putDirInfo(parent, pinfo, false);
+        // fails on symlink
+        // assert(this.itemExists(fixedPath), `setMetaInfo: item ${fixedPath} not found`);
     }
     public mkdir(path:string) {
         assertAbsolute(path);
-        path=P.directorify(path);
-        this.assertWriteable(path);
-        this.touch(path);
+        const dpath=P.directorify(path);
+        this.assertWriteable(dpath);
+        this.touch(dpath);
     }
     public opendir(path:string) {
         //succ: iterator<string> // next()
-        path=P.directorify(path);
-        const inf = this.getDirInfo(path);
-        const res = [] as string[]; //this.dirFromFstab(path);
+        const dpath=P.directorify(path);
+        const inf = this.getDirInfo(dpath);
+        const res = [] as string[];
         for (let i in inf) {
             assert(inf[i]);
             if (inf[i].trashed) continue;
@@ -236,13 +325,13 @@ export class LSFS extends FS {
     }
     public opendirent(path:string) {
         //succ: iterator<string> // next()
-        path=P.directorify(path);
-        const inf = this.getDirInfo(path);
+        const dpath=P.directorify(path);
+        const inf = this.getDirInfo(dpath);
         const res = [] as Dirent[];
-        for (let i in inf) {
-            assert(inf[i]);
-            if (inf[i].trashed) continue;
-            res.push(LSFS.meta2dirent(path, i, inf[i]));
+        for (let fixedName in inf) {
+            assert(inf[fixedName]);
+            if (inf[fixedName].trashed) continue;
+            res.push(LSFS.meta2dirent(dpath, fixedName, meta2stat(inf[fixedName], P.isDir(fixedName), ()=>this.size(P.rel(dpath, fixedName))   )  ));
         }
         return res;
     }
@@ -254,45 +343,31 @@ export class LSFS extends FS {
             throw new Error(path + ": cannot remove. It is root of this FS.");
         }
         this.assertExist(path);
-        if (this.isDir(path)) {
-            const lis = this.opendir(path);
+        const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
+        const lstat=this.lstat(fixedPath);
+        if (lstat.isDirectory() && !lstat.isSymbolicLink()){
+            const lis = this.opendir(fixedPath);
             if (lis.length > 0) {
-                throw new Error(`${path}: Directory not empty`);
+                throw new Error(`${fixedPath}: Directory not empty`);
             }
-            this.removeItem(path);
-        } else {
-            this.removeItem(path);
         }
-        const pinfo = this.getDirInfo(parent);
-        this.removeEntry(pinfo, parent, P.name(path));
+        if (!lstat.isSymbolicLink()) this.removeItem(fixedPath);
+        this.removeEntry(pinfo, parent, fixedName);
     }
     public exists(path: string) {
         assertAbsolute(path);
-        let name = P.name(path);
         const parent = P.up(path);
         if (parent == null || !this.inMyFS(parent)) return true;
-        const pinfo = this.getDirInfo(parent);
-        name=fixSep(pinfo, name);
-        const res = pinfo[name];
+        if (!this.itemExists(parent)) return false;
+        const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
+        const res = pinfo[fixedName];
         return (res && !res.trashed);
-    }
-    /** returns true even if it is nonexistent when path ends with '/' */
-    public isDir(path:string){
-        assertAbsolute(path);
-        if(P.isDir(path))return true;
-        let name = P.name(path);
-        const parent = P.up(path);
-        if (parent == null) return true;
-        const pinfo = this.getDirInfo(parent);
-        const res = pinfo[name];
-        if (res) return false;
-        return !!pinfo[name+"/"];
     }
     public link(path:string, to:string) {
         assertAbsolute(path);
         assertAbsolute(to);
         this.assertWriteable(path);
-        if (this.exists(path)) throw new Error(`${path} file exists`);
+        if (this.exists(path)) throw new Error(`${path}: file exists`);
         if (P.isDir(path) && !P.isDir(to)) {
             throw new Error(`${path} can not link to file ${to}`);
         }
@@ -313,29 +388,36 @@ export class LSFS extends FS {
     public isLink(path:string):string|undefined {
         assertAbsolute(path);
         if (!this.exists(path)) return undefined;
-        const m = this.getMetaInfo(path);
-        return m.link;
+        const m = this.lstat(path);
+        return m.linkPath;
     }
     public touch(path:string) {
         assertAbsolute(path);
         this.assertWriteable(path);
+        const parent = up(path);
+        let _fixedPath;
         if (!this.exists(path)) {
             if (P.isDir(path)) {
-                if (this.dirCache) this.dirCache[path] = {};
-                this.setItem(path, "{}");
+                const fixedPath=path;
+                _fixedPath=fixedPath;
+                this.setItemWithDirCache(fixedPath,{});
             } else {
-                this.setItem(path, "");
+                const fixedPath=path;
+                _fixedPath=fixedPath;
+                this.setItem(fixedPath, "");
             }
         }
-        const parent = up(path);
         if (parent != null) {
+            this.assertExist(parent);
             if (this.inMyFS(parent)) {
-                var pinfo = this.getDirInfo(parent);
-                this._touch(pinfo, parent, P.name(path), false);
+                const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
+                _fixedPath=fixedPath;
+                this._touch(pinfo, parent, fixedName, false);
             } else {
                 this.getRootFS().resolveFS(parent).touch(parent);
             }
         }
+        if (_fixedPath) assert(this.itemExists(_fixedPath), `touch: item ${_fixedPath} (original path=${path}) not found`);
     }
     /*getURL(path:string) {
         return this.getContent(path).toURL();

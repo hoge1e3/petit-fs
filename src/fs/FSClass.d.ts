@@ -1,4 +1,4 @@
-import { default as RootFS, FSTypeName } from "./RootFS";
+import { default as RootFS, FSTypeName, Stats } from "./RootFS";
 import Content from "./Content";
 import { Dir } from "fs";
 export type Dirent={
@@ -23,11 +23,13 @@ export default abstract class FileSystem {
     inMYFS(path:string):boolean;
     getRootFS():RootFS;
     abstract getContent(path:string):Content;
-    size(path:string):number;
+    //size(path:string):number;
     abstract setContent(path:string, content:Content):void;
     abstract appendContent(path:string, content:Content):void;
-    abstract getMetaInfo(path:string):MetaInfo;
-    abstract setMetaInfo(path:string, info:MetaInfo):void;
+    abstract lstat(path: string):Stats;
+    abstract setMtime(path: string, time: number):void;
+    //abstract getMetaInfo(path:string):MetaInfo;
+    //abstract setMetaInfo(path:string, info:MetaInfo):void;
     getContentType(path:string):string;
     abstract mkdir(path:string):void;
     abstract touch(path:string):void;
@@ -43,7 +45,7 @@ export default abstract class FileSystem {
     abstract isLink(path:string):string|undefined;
     //getURL(path:string):string;
     onAddObserver(path:string):void;
-    abstract isDir(path:string):boolean;
+    //abstract isDir(path:string):boolean;
     static addFSType(name:string, fsgen:(mountPoint:string, options:object)=>FileSystem):void;
     inMyFS(path:string):boolean;
     //resolveLink(path:string):string;
@@ -58,8 +60,8 @@ export interface Walker{
     enter():Walker;
     exit():Walker;
 }
-export type MetaInfo={
+/*export type MetaInfo={
     lastUpdate:number,
     link?: string,
     trashed?: boolean,
-};
+};*/

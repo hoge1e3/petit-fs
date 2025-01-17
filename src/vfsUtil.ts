@@ -300,6 +300,14 @@ export class FileSystem {
     }
     /* Used when refers to link itself, (on unlink etc) */
     public resolveParentLink(path: string):[FSClass,string] {
+        /*
+        if path is mount point, it should return [FS_at_mount point, path itself]
+        if path is symbolic link that points mount point, it should return [FS_of_up(path), path]
+        */
+        const mfs=this.isMountPoint(path);
+        if (mfs){
+            return [mfs, path];
+        }
         const dir=PathUtil.up(path);
         if (!dir) {
             return this.resolveLink(path);

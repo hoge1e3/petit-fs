@@ -19,4 +19,5 @@ export default class Content {
     hasPlainText():boolean;
     toBlob():Blob;
     download(name:string):void;
+    bufType: "node"|"array1"|"array2";
 }

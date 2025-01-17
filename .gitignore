@@ -12,3 +12,5 @@ package-lock.json
 src/fs/LSFS.old.js
 src/fs/LSFS.js
 src/fs/LSFS.js.map
+src/index.js
+src/index.js.map

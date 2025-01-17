@@ -80,6 +80,8 @@ try {
     const r=root.rel.bind(root);
     fs.mountSync("/zip/","ram");
     const zip=r("zip/");
+    assert(zip.exists());
+    assert(zip.isDir());
     await extractFixture(zip);
     const fixture=zip.rel("fixture/");
     const romd=fixture.rel("rom/");

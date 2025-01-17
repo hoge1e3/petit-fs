@@ -1,6 +1,8 @@
 import { FileSystem } from "./vfsUtil.js";
 export declare const fs: FileSystem;
 export { process, os, path } from "./vfsUtil.js";
+export { default as FSClass } from "./fs/FSClass.js";
+export { LSFS } from "./fs/LSFS.js";
 export { Buffer } from "buffer";
 export { default as PathUtil } from "./fs/PathUtil.js";
 export { default as Content } from "./fs/Content.js";

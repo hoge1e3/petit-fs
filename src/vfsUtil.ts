@@ -189,6 +189,10 @@ export type FdEntry={
 export class FileSystem {
     fdseq=1;
     fdEntries=new Map<number, FdEntry>();
+    linkCache=new Map<string, [FSClass, string]>();
+    clearLinkCache(){
+        this.linkCache=new Map<string, [FSClass, string]>();
+    }
     getRootFS():RootFS{
         return getRootFS();
     }
@@ -226,6 +230,7 @@ export class FileSystem {
         const rfs=getRootFS();
         mountPoint=PathUtil.directorify(mountPoint);
         rfs.mount(mountPoint, resolver);
+        this.clearLinkCache();
     }
 
     /**
@@ -441,6 +446,7 @@ export class FileSystem {
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
     public rmdirSync(path: string, options?:{recursive?:boolean}): void {
+        // TODO: if path is symbolic link...??
         if (this.isReadonly) throw createIOError("EROFS");
         if (!this.statSync(path).isDirectory()) {
             throw new Error(`${path} is not a directory`);
@@ -449,7 +455,8 @@ export class FileSystem {
             return this.rimrafSync(path);
         }
         const [fs, fpath]=this.resolveParentLink(path);
-        return fs.rm(fpath);           
+        fs.rm(fpath);           
+        this.clearLinkCache();
     }
     public rmSync(path: string, options?:{recursive?:boolean, force?:boolean}): void {
         if (options?.recursive) {
@@ -479,7 +486,8 @@ export class FileSystem {
     public unlinkSync(path: string): void {
         if (this.isReadonly) throw createIOError("EROFS");
         const [fs, fpath]=this.resolveParentLink(path);
-        return fs.rm(fpath);
+        fs.rm(fpath);
+        this.clearLinkCache();
     }
 
     /**
@@ -501,6 +509,7 @@ export class FileSystem {
         }
         this.cpSync(src, dst, {recursive:true});
         this.rimrafSync(src);
+        this.clearLinkCache();
     }
     // NOTE: {cp|rename}Sync(src, dst) is equivalent to {cp|mv} [-r] src/* dst/ in UNIX. not {cp|mv} [-r] src dst
     //        src/a.txt is always {copied|moved} to dst/a.txt, never dst/src/a.txt even dst is already a directory.
@@ -553,6 +562,7 @@ export class FileSystem {
             target=PathUtil.rel(fpath, target)
         }
         fs.link(fpath, target);
+        this.clearLinkCache();
     }
 
     /**

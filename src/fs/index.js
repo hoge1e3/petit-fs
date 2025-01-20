@@ -52,56 +52,27 @@ export let localStorageAvailable = function () {
         return false;
     }
 };
-export let init = function (fs) {
-    if (rootFS) return;
-    if (!fs) {
-        if (FS.NativeFS.available) {
-            fs = new FS.NativeFS();
-        } else if (FS.localStorageAvailable()) {
-            fs = new FS.LSFS(localStorage);
-        } else if (typeof importScripts === "function") {
-            // Worker
-            /* global self*/
-            self.addEventListener("message", function (e) {
-                var data = e.data;
-                if (typeof data === "string") {
-                    data = JSON.parse(data);
-                }
-                switch (data.type) {
-                    case "upload":
-                        FS.get(data.base).importFromObject(data.data);
-                        break;
-                    case "observe":
-                        rootFS.observe(data.path, function (path, meta) {
-                            self.postMessage(JSON.stringify({
-                                type: "changed",
-                                path: path,
-                                content: FS.get(path).text(),
-                                meta: meta
-                            }));
-                        });
-                        break;
-                }
-            });
-            fs = FS.LSFS.ramDisk();
-        } else {
-            fs = FS.LSFS.ramDisk();
-        }
+export let init = function () {
+    if (rootFS) return rootFS;
+    rootFS=new FS.RootFS();
+    if (FS.localStorageAvailable()) {
+        rootFS.mount("/","localStorage");
+    } else {
+        rootFS.mount("/","ram");
     }
-    rootFS = (fs instanceof FS.RootFS? fs : new FS.RootFS(fs));
+    return rootFS;    
 };
 export let getRootFS = function () {
-    FS.init();
-    return rootFS;
+    return FS.init();
 };
-export let get = function () {
+/*export let get = function () {
     FS.init();
     return rootFS.get.apply(rootFS, arguments);
-};
+};*/
 export let expandPath = function () {
     return env.expandPath.apply(env, arguments);
 };
-export let resolve = function (path, base) {
+/*export let resolve = function (path, base) {
     FS.init();
     path = env.expandPath(path);
     if (base && !P.isAbsolutePath(path)) {
@@ -109,7 +80,7 @@ export let resolve = function (path, base) {
         return FS.get(base).rel(path);
     }
     return FS.get(path);
-};
+};*/
 export let mount = function () {
     FS.init();
     return rootFS.mount.apply(rootFS, arguments);
@@ -120,7 +91,7 @@ export let unmount = function () {
 };
 let FS={assert,Content,Class,Env,LSFS,NativeFS,
     PathUtil,RootFS,addFSType,availFSTypes,setEnvProvider,getEnvProvider,
-    setEnv,getEnv,localStorageAvailable,init,getRootFS,get,expandPath,resolve,
+    setEnv,getEnv,localStorageAvailable,init,getRootFS,expandPath,
     mount,unmount};
 FS.default=FS;
 export {FS as default};

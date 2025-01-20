@@ -149,6 +149,13 @@ p.hasArrayBuffer= function () {return this.arrayBuffer;};
 p.toBlob=function () {
     return new Blob([this.toBin(ArrayBuffer)],{type:this.contentType});
 };
+p.roughSize=function () {
+    if (this.hasNodeBuffer()) return this.nodeBuffer.byteLength;
+    if (this.hasArrayBuffer()) return this.arrayBuffer.byteLength;
+    if (this.hasPlainText()) return this.plain.length;
+    if (this.hasURL()) return this.url.length;
+    return 0;
+}
 p.download=function (name) {
     Content.download(this.toBlob(),name);
 };

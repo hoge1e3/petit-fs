@@ -1,9 +1,9 @@
 import assert from "./assert.js";
 import FS from "./FSClass.js";
 import P from "./PathUtil.js";
-var RootFS = function (defaultFS) {
-    assert.is(defaultFS, FS);
-    this.mount(null, defaultFS);
+var RootFS = function (/*defaultFS*/) {
+    /*assert.is(defaultFS, FS);
+    this.mount(null, defaultFS);*/
 };
 var dst = RootFS.prototype;
 var p = {
@@ -14,6 +14,12 @@ var p = {
     fstab: function () {
         this._fstab = this._fstab || [];//[{fs:this, path:P.SEP}];
         return this._fstab;
+    },
+    hasUncommited() {
+        for (let fs of this.fstab()) {
+            if (fs.hasUncommited()) return true;
+        }
+        return false;
     },
     unmount: function (path, options) {
         assert.is(arguments, [P.AbsDir]);
@@ -30,13 +36,14 @@ var p = {
     availFSTypes: function () {
         return FS.availFSTypes();
     },
-    mount: function (path, fs, options) {
+    mount: function (mountPoint, fs, options) {
+        assert.is(mountPoint, String);
         if (typeof fs == "string") {
             var fact = assert(FS.availFSTypes()[fs], "fstype " + fs + " is undefined.");
-            fs = fact(path, options || {});
+            fs = fact(this, mountPoint, options || {});
         }
         assert.is(fs, FS);
-        fs.mounted(this, path);
+        //fs.mounted(this, path);
         this.fstab().unshift(fs);
     },
     resolveFS: function (path, options) {

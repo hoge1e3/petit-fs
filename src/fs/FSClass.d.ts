@@ -15,11 +15,13 @@ export type Dirent={
 }
 
 export default abstract class FileSystem {
+    constructor(rootFS:RootFS, mountPoint:string);
     fstype():FSTypeName;
+    abstract hasUncommited():boolean;
     abstract isReadOnly(path:string):boolean;
     resolveFS(path:string):FileSystem;
-    mountPoint?: string;
-    mounted(rootFS:RootFS, mountPoint:string):void;
+    mountPoint: string;
+    //mounted(rootFS:RootFS, mountPoint:string):void;
     inMYFS(path:string):boolean;
     getRootFS():RootFS;
     abstract getContent(path:string):Content;
@@ -38,6 +40,7 @@ export default abstract class FileSystem {
     assertWriteable(path:string):void;
     abstract opendir(path:string):string[];
     abstract opendirent(path:string):Dirent[];
+    abstract direntOfMountPoint():Dirent;
     copyFile(path:string, dst:string):void;
     //mv(path:string, dst:string):void;
     abstract rm(path:string):void;
@@ -46,7 +49,7 @@ export default abstract class FileSystem {
     //getURL(path:string):string;
     onAddObserver(path:string):void;
     //abstract isDir(path:string):boolean;
-    static addFSType(name:string, fsgen:(mountPoint:string, options:object)=>FileSystem):void;
+    static addFSType(name:string, fsgen:(rootFS:RootFS, mountPoint:string, options:object)=>FileSystem):void;
     inMyFS(path:string):boolean;
     //resolveLink(path:string):string;
 

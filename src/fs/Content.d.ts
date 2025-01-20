@@ -18,6 +18,7 @@ export default class Content {
     hasNodeBuffer():boolean;
     hasPlainText():boolean;
     toBlob():Blob;
+    roughSize():number;
     download(name:string):void;
     bufType: "node"|"array1"|"array2";
 }

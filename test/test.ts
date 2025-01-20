@@ -82,6 +82,9 @@ try {
     const zip=r("zip/");
     assert(zip.exists());
     assert(zip.isDir());
+    assert(fs.readdirSync("/").includes("zip"));
+    assert(fs.readdirSync("/",{withFileTypes:true}).some((e)=>e.name==="zip"));
+    assert(root.ls().includes("zip/"));
     await extractFixture(zip);
     const fixture=zip.rel("fixture/");
     const romd=fixture.rel("rom/");
@@ -141,7 +144,7 @@ try {
         romd.recursive(pushtn, { 
             // Notice: f.ext() !== ".tonyu" only does not work since it skips directories (and *.tonyu file its subdirectories).
             excludes:(f:SFile)=>(!f.isDir() && f.ext() !== ".tonyu"),
-            cacheMeta: true,
+            cache: true,
         });
         _console.log(".tonyu files in ", romd, tncnt);
         assert.eq(tncnt.length, 46, "tncnt");
@@ -150,14 +153,14 @@ try {
         romd.recursive(pushtn, { 
             excludes:(f:SFile)=>!f.isDir(),
             includeDir:true,
-            cacheMeta: true,
+            cache: true,
         });
         _console.log("directories in ", romd, tncnt);
         assert.eq(tncnt.length, 9, "tncnt");
 
         tncnt = [];
         let exdirs = ["physics/", "event/", "graphics/"];
-        romd.recursive(pushtn, { excludes: exdirs, cacheMeta: true,});
+        romd.recursive(pushtn, { excludes: exdirs, cache: true,});
         _console.log("files in ", romd+" except", exdirs, tncnt);
         assert.eq(tncnt.length, 33, "tncnt");
         checkGetDirTree(romd);
@@ -297,9 +300,12 @@ try {
         }
     }
     if(ramd.exists()) await retryRmdir(ramd);
+    while (fs.getRootFS().hasUncommited()) {
+        console.log("Waiting for commit...");
+        await timeout(500);
+    }
     console.log("passed", "#"+pass);
     if (pass==1) {
-        await timeout(1000);
         if (typeof location!=="undefined" && !location.href.match(/pass1only/)) location.reload();
     } else {
         console.log("All test passed.");
@@ -471,7 +477,7 @@ function chkRecur(dir:SFile, options:DirectoryOptions, expected:string[]) {
     const di = [] as string[];
     dir.recursive(function (f) {
         di.push(f.relPath(dir));
-    }, {...options, cacheMeta: true,});
+    }, {...options, cache: true,});
     eqa(di, expected);
     let t = dir.getDirTree({excludes:options.excludes,style:"flat-relative"});
     _console.log("getDirTree",dir, t);

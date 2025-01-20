@@ -3,7 +3,9 @@ import assert from "./assert.js";
 import P from "./PathUtil.js";
 import M from "./MIMETypes.js";
 const extend=Util.extend;
-var FS = function () {
+var FS = function (rootFS, mountPoint) {
+    this.rootFS = rootFS;
+    this.mountPoint = mountPoint;
 };
 var fstypes = {};
 FS.addFSType = function (name, fsgen) {
@@ -34,13 +36,16 @@ extend(FS.prototype, {
         assert(this.getRootFS() !== this);
         return this.getRootFS().resolveFS(path);
     },
-    mounted: function (rootFS, mountPoint) {
+    hasUncommited() {
+        return false;
+    },
+    /*mounted: function (rootFS, mountPoint) {
         //assert.is(arguments,[FS,P.AbsDir]);
         this.rootFS = rootFS;
         this.mountPoint = mountPoint;
-    },
+    },*/
     inMyFS: function (path) {
-        return !this.mountPoint || P.startsWith(P.truncSEP(path), P.truncSEP(this.mountPoint));
+        return P.startsWith(P.truncSEP(path), P.truncSEP(this.mountPoint));
     },
     /*dirFromFstab: function (path, options) {
         assert.is(path, P.AbsDir);

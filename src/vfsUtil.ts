@@ -256,7 +256,7 @@ export class FileSystem {
             throw e;
         }
     }
-    private resolveFS(path: string):[FSClass, string] {
+    /*private resolveFS(path: string):[FSClass, string] {
         path=this.toAbsolutePath(path);
         const rfs=this.getRootFS();
         const mp=this.isMountPoint(path);
@@ -265,8 +265,15 @@ export class FileSystem {
             return [mp, mp.mountPoint||"/"]; 
         }
         return [ rfs.resolveFS(path), path];
-    }
+    }*/
     public resolveLink(path: string):[FSClass,string] {
+        const cached=this.linkCache.get(path);
+        if (cached) return cached;
+        const n=this.resolveLinkNoCache(path);
+        this.linkCache.set(path,n);
+        return n;
+    }
+    public resolveLinkNoCache(path: string):[FSClass,string] {
         // This always return fs,path even if it is not exists.
         path=this.toAbsolutePath(path);
         /* ln -s /a/b/ /c/d/
@@ -280,7 +287,34 @@ export class FileSystem {
         // resolveLink /ram/files/sub/test2.txt -> /testdir/sub/test2.txt
         // path=/ram/files/test.txt
         */
-        while(true) {
+        const mp=this.isMountPoint(path);
+        if (mp) {
+            // Mount point is never link.
+            return [mp, mp.mountPoint||"/"]; 
+        }
+        const parent=PathUtil.up(path);
+        if (!parent) {
+            const rfs=this.getRootFS();
+            // "/" is never link.
+            return [rfs.resolveFS(path),path];
+        }
+        // path=/a/b/  parent=/a/
+        const [rpfs, rppath]=this.resolveLink(parent);
+        // rpfs=(fs of /a/)    rppath=/a/ 
+        // rp=Resolved Parent. rpfs, rppath have NO link components.
+        const rpath=PathUtil.rel(rppath, PathUtil.name(path));
+        // rpath = /a/b/ 
+        let to=(rpfs.exists(rpath) && rpfs.isLink(rpath));
+        // to = /c/d/   (or, to = ../c/d/)
+        if (to) {
+            if (!PathUtil.isAbsolutePath(to)) {
+                to=PathUtil.rel(rppath,to); // rppath=/a/  to= ../c/d/ -> /c/d/
+            }
+            return this.resolveLink(to);  //  to=/c/d/
+        }
+        return [rpfs, rpath];  // [pfs=(fs of /a/),  rpath=/a/b/]
+
+        /*while(true) {
             let p,fs;
             // path=/ram/files/sub/test2.txt
             for (p=path; p; p=PathUtil.up(p)) {
@@ -301,7 +335,7 @@ export class FileSystem {
                 }
             }
             if (!p) return this.resolveFS(path);
-        }
+        }*/
     }
     /* Used when refers to link itself, (on unlink etc) */
     public resolveParentLink(path: string):[FSClass,string] {
@@ -351,7 +385,7 @@ export class FileSystem {
         path=PathUtil.directorify(path);
         return this.getRootFS().fstab().find((f)=>f.mountPoint===path);
     }
-    hasMountPoints(path:string):FSClass[] {
+    childrenOfMountPoint(path:string):FSClass[] {
         path=PathUtil.directorify(path);
         return this.getRootFS().fstab().filter(
             (f)=>f.mountPoint && PathUtil.up(f.mountPoint)===path);
@@ -409,13 +443,16 @@ export class FileSystem {
     public readdirSync(path: string, opt:{withFileTypes:boolean}={withFileTypes:false}): string[]|Dirent[] {
         const [fs, fpath]=this.resolveLink(path);
         if (opt.withFileTypes) {
-            return fs.opendirent(fpath);
+            return [
+                ...fs.opendirent(fpath),
+                ...this.childrenOfMountPoint(fpath).    
+                    map((f)=>f.direntOfMountPoint())
+            ];
         }
         const res=[
             ...fs.opendir(fpath), 
-            ...this.hasMountPoints(fpath).
-                map((f)=>f.mountPoint).
-                filter((p)=>p).map((p)=>PathUtil.name(p!))
+            ...this.childrenOfMountPoint(fpath).
+                map((f)=>f.mountPoint).map((p)=>PathUtil.name(p!))
         ];
         return res.map((p)=>PathUtil.truncSEP(p!));
     }
@@ -601,9 +638,16 @@ export class FileSystem {
         if (fs.lstat(fpath).isDirectory()) throw new Error(`Cannot read from directory: ${fpath}`);
         const c=fs.getContent(fpath);
         if (encoding) {
-            return c.toPlainText();
+            return this.toPlainTextOrURL(c);
         } else {
             return c.toBin();
+        }    
+    }
+    private toPlainTextOrURL(c:Content) {
+        try {
+            return c.toPlainText();
+        } catch (e) {
+            return c.toURL();
         }
     }
 

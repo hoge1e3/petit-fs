@@ -428,6 +428,7 @@ export class LSFS extends FS {
                 eventType="create";
             } else {
                 dinfo[fixedName].lastUpdate = now();
+                delete dinfo[fixedName].trashed;
             }
             evt={ eventType,  ...meta2stat(dinfo[fixedName], P.isDir(fixedName), ()=>1/*TODO*/)};
         }

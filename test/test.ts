@@ -78,12 +78,17 @@ try {
     g.FS=FS;
     //let cd =root;
     const r=root.rel.bind(root);
+    fs.mkdirSync("/zip/");
     fs.mountSync("/zip/","ram");
+    assert.eq(fs.readdirSync("/").filter((n)=>n==="zip").length, 1);
+    assert(fs.readdirSync("/").every((n)=>!n.includes("/")));
+    assert.eq(fs.readdirSync("/",{withFileTypes:true}).filter((e)=>e.name==="zip").length, 1);
+    assert(fs.readdirSync("/",{withFileTypes:true}).every((n)=>!n.name.includes("/")));
     const zip=r("zip/");
     assert(zip.exists());
     assert(zip.isDir());
     assert(fs.readdirSync("/").includes("zip"));
-    assert(fs.readdirSync("/",{withFileTypes:true}).some((e)=>e.name==="zip"));
+    assert.eq(fs.readdirSync("/",{withFileTypes:true}).filter((e)=>e.name==="zip").length, 1);
     assert(root.ls().includes("zip/"));
     await extractFixture(zip);
     const fixture=zip.rel("fixture/");

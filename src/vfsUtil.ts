@@ -386,6 +386,7 @@ export class FileSystem {
         return this.getRootFS().fstab().find((f)=>f.mountPoint===path);
     }
     childrenOfMountPoint(path:string):FSClass[] {
+        // this=/mnt/  ,  returns  ["/mnt/fd", "/mnt/cdrom"] ... etc. just a example.
         path=PathUtil.directorify(path);
         return this.getRootFS().fstab().filter(
             (f)=>f.mountPoint && PathUtil.up(f.mountPoint)===path);
@@ -442,19 +443,26 @@ export class FileSystem {
     public readdirSync(path: string, opt:{withFileTypes:true}): Dirent[];
     public readdirSync(path: string, opt:{withFileTypes:boolean}={withFileTypes:false}): string[]|Dirent[] {
         const [fs, fpath]=this.resolveLink(path);
+        const mps=this.childrenOfMountPoint(fpath);
         if (opt.withFileTypes) {
-            return [
-                ...fs.opendirent(fpath),
-                ...this.childrenOfMountPoint(fpath).    
-                    map((f)=>f.direntOfMountPoint())
-            ];
+            const res=fs.opendirent(fpath);
+            if (mps.length===0) return res;
+            for (let f of mps) {
+                const e=f.direntOfMountPoint();
+                const idx=res.findIndex((_e)=>_e.name===e.name);
+                if (idx>=0) res.splice(idx,1);
+                res.push(e);
+            }
+            return res;
+        } else {
+            const res=fs.opendir(fpath).map(n=>PathUtil.truncSEP(n));
+            if (mps.length===0) return res;
+            for (let f of mps) {
+                const n=PathUtil.truncSEP(PathUtil.name(f.mountPoint));
+                if (!res.includes(n)) res.push(n);
+            }
+            return res;    
         }
-        const res=[
-            ...fs.opendir(fpath), 
-            ...this.childrenOfMountPoint(fpath).
-                map((f)=>f.mountPoint).map((p)=>PathUtil.name(p!))
-        ];
-        return res.map((p)=>PathUtil.truncSEP(p!));
     }
     /**
      * Make a directory.
@@ -577,7 +585,7 @@ export class FileSystem {
                 }
             }
         } else {
-            if (this.statSync(dst).isDirectory()) {
+            if (this.existsSync(dst) && this.statSync(dst).isDirectory()) {
                 throw new Error(`${dst} is a directory`);
             }
             dfs.setContent(dst, sfs.getContent(src));

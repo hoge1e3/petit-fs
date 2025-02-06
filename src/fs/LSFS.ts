@@ -305,6 +305,7 @@ export class LSFS extends FS {
     constructor(rootFS:RootFS, mountPoint: string, public storage:Storage, {readOnly}:LSFSOptions={}) {
         assert(storage, " new LSFS fail: no storage");
         super(rootFS, mountPoint);
+        if (!storage["/"]) storage["/"] = "{}";
         this.readOnly=!!readOnly;
         this.cachedStorage=new CachedStorage(storage, mountPoint);
     }

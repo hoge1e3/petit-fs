@@ -70,13 +70,26 @@ export const process={
     _cwd: "/", 
     env: {} as {[key:string]:string},
     argv: [] as string[],
+    argv0: "",
+    execPath: "",
     execArgv:[] as string[],
     pid: 0 as number,
+    release: {
+        name:"petit-fs"
+    },
     stdout: {
         write(...a:any[]){
             console.log(...a);
         },
         columns: 80,
+        fd:1,
+    },
+    stderr: {
+        write(...a:any[]){
+            console.log(...a);
+        },
+        columns: 80,
+        fd:2,
     },
     memoryUsage(){
         return {heapUsed:0};

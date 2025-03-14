@@ -58,7 +58,8 @@ declare class CachedStorage implements CacheableStorage {
     htimer: any;
     hasUncommited(): boolean;
     private wakeTimer;
-    private commit;
+    clearCache(): void;
+    commit(): void;
     reservedDirInfos: Set<string>;
     reservedContents: Set<string>;
     constructor(storage: Storage, mountPoint: string);

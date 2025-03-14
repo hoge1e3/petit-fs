@@ -1,7 +1,7 @@
 {
   "type": "module",
   "name": "petit-fs",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "node/fs compatible interface for browser, using localStorage.",
   "main": "src/index.js",
   "types": "src/index.d.ts",
@@ -30,7 +30,7 @@
   "homepage": "https://github.com/hoge1e3/petit-fs#readme",
   "devDependencies": {
     "@eslint/js": "^9.1.1",
-    "@hoge1e3/sfile": "^1.0.8",
+    "@hoge1e3/sfile": "^1.1.9",
     "@types/chai": "^5.0.1",
     "@types/escodegen": "^0.0.10",
     "@types/espree": "^10.0.0",

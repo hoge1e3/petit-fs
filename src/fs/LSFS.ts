@@ -209,7 +209,12 @@ class CachedStorage implements CacheableStorage {
         if (this.htimer!==undefined)return;
         this.htimer=setTimeout(()=>this.commit(), 1000);
     }
-    private commit() {
+    clearCache() {
+        this.commit();
+        this.dirInfoCache=new Map<string, CacheStatus<DirInfo>>();
+        this.contentCache=new Map<string, CacheStatus<Content>>();
+    }
+    commit() {
         for (let cp of this.reservedContents) {
             const c=this.contentCache.get(cp);
             assert(c!==undefined,`commit content: ${cp} not exists`); 
@@ -222,6 +227,8 @@ class CachedStorage implements CacheableStorage {
             if (d==="deleted") this.raw.removeDirInfoItem(dp);
             else this.raw.setDirInfoItem(dp, d.value);
         }
+        this.reservedDirInfos=new Set<string>();
+        this.reservedContents=new Set<string>();
         this.htimer=undefined;
     }
     reservedDirInfos=new Set<string>();

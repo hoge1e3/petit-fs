@@ -14,3 +14,6 @@ src/fs/LSFS.js
 src/fs/LSFS.js.map
 src/index.js
 src/index.js.map
+src/fs/LSFS.d.ts
+src/index.d.ts
+test/test.d.ts

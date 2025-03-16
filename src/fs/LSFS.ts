@@ -195,6 +195,19 @@ class NoCacheStorage implements CacheableStorage {
         assertAbsoluteDir(dpath);
         return this.removeItem(dpath);
     }
+    export(path:string|undefined) {
+        if (!path) return this.storage;
+        const res={} as Storage;
+        for (let k in this.storage) {
+            if (k.startsWith(path)) res[k]=this.storage[k];
+        }
+        return res;
+    }
+    import(obj:Storage) {
+        for (let k in obj) {
+            this.storage[k]=obj[k];
+        }
+    }
 }
 type CacheStatus<T>={value:T}|"deleted";
 class CachedStorage implements CacheableStorage {
@@ -300,6 +313,14 @@ class CachedStorage implements CacheableStorage {
         this.reservedDirInfos.add(dpath);
         this.wakeTimer();
     }    
+    export(path:string|undefined) {
+        this.commit();
+        return this.raw.export(path);
+    }
+    import(obj:Storage) {
+        this.commit();
+        return this.raw.import(obj);  
+    }
 }
 export class LSFS extends FS {
     //dirCache:{[key:string]:DirInfo}={};
@@ -720,7 +741,12 @@ export class LSFS extends FS {
             }
         }
     }
-    
+    export(path:string|undefined) {
+        return this.cachedStorage.export(path);
+    }
+    import(obj:Storage) {
+        return this.cachedStorage.import(obj);  
+    }
 }
 export default LSFS;
 

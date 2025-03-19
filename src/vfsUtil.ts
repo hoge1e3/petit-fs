@@ -738,9 +738,12 @@ export class FileSystem {
             listener=opts.shift();
         }
         const inter=options.interval||5000;
-        let prev=this.statSync(path);
+        const stat=(path:string)=>this.existsSync(path) ?
+            this.statSync(path): dummyStat();
+        const dummyStat=()=>new Stats();
+        let prev=stat(path);
         const loop=()=>{
-            const cur=this.statSync(path);
+            const cur=stat(path);
             if(cur.mtimeMs!==prev.mtimeMs){
                 listener(prev,cur);
                 prev=cur;

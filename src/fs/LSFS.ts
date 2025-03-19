@@ -5,7 +5,7 @@ import P from "./PathUtil.js";
 import Content from "./Content.js";
 import {assert} from "chai";
 import RootFS, { Stats, WatchEvent } from "./RootFS.js";
-import { dir } from "console";
+import {IStorage, LocalStorageWrapper, MemoryStorage} from "./StorageWrapper.js";
 //const isDir = P.isDir.bind(P);
 const up = P.up.bind(P);
 //const endsWith = P.endsWith.bind(P);
@@ -68,7 +68,7 @@ export type LSFSOptions={readOnly?:boolean};
 //export type LSFSConstructorOptions={mountPoint?: string}&LSFSOptions;
 export type DirInfo={[key:string]:MetaInfo};
 FS.addFSType("localStorage", function (rootFS:RootFS, mountPoint:string, options:LSFSOptions) {
-    return new LSFS(rootFS, mountPoint, localStorage, options);
+    return new LSFS(rootFS, mountPoint, new LocalStorageWrapper(localStorage), options);
 });
 FS.addFSType("ram", function (rootFS:RootFS, mountPoint:string, options:LSFSOptions) {
     return LSFS.ramDisk(rootFS, mountPoint, options);
@@ -93,7 +93,6 @@ function fixSep(dinfo:DirInfo, name:string) {
     }
     return name;
 }
-export type Storage = {[key:string]:string};
 
 interface CacheableStorage {
     getContentItem(regPath:string):Content;
@@ -109,39 +108,31 @@ interface CacheableStorage {
 
 }
 class NoCacheStorage implements CacheableStorage {
-    constructor(public storage:Storage, public mountPoint:string){}
-    /*private resolveKey(fixedPath:string):string {
-        assertAbsolute(fixedPath);
-        if (this.mountPoint) {
-            return P.SEP + P.relPath(fixedPath, this.mountPoint);
-        } else {
-            return fixedPath;
-        }
-    };*/
+    constructor(public storage:IStorage, public mountPoint:string){}
     private getItem(fixedPath:string) {
         assertAbsolute(fixedPath);
-        const key = fixedPath;// this.resolveKey(fixedPath);
+        const key = fixedPath;
         assert(this.itemExists(fixedPath), `file(item) ${key} is not found.`);
-        return this.storage[key];
+        return this.storage.getItem(key)!;
     }
     private itemExists(fixedPath:string) {
         assertAbsolute(fixedPath);
-        const key = fixedPath;// this.resolveKey(fixedPath);
-        return key in this.storage;
+        const key = fixedPath;
+        return this.storage.itemExists(key);
     }
     private setItem(fixedPath:string, value:string) {
         assertAbsolute(fixedPath);
-        const key = fixedPath;// this.resolveKey(fixedPath);
+        const key = fixedPath;
         assert(key.indexOf("..") < 0);
         assert(P.startsWith(key, P.SEP));
-        this.storage[key] = value;
+        this.storage.setItem(key, value);
     }
     private removeItem(fixedPath:string) {
         assertAbsolute(fixedPath);
-        const key = fixedPath;// this.resolveKey(fixedPath);
+        const key = fixedPath;
         // Cannot assure this when write->remove very quickly(=before commit).
         //assert(key in this.storage, `removeItem: ${key} is not in storage`);
-        delete this.storage[key];
+        this.storage.removeItem(key);
     }
     getContentItem(regPath: string): Content {
         assertAbsoluteRegular(regPath);
@@ -173,7 +164,6 @@ class NoCacheStorage implements CacheableStorage {
         assertAbsoluteRegular(regPath);
         this.removeItem(regPath);
     }
-
     getDirInfoItem(dpath: string): DirInfo {
         assertAbsoluteDir(dpath);
         const dinfos = this.getItem(dpath);
@@ -195,17 +185,23 @@ class NoCacheStorage implements CacheableStorage {
         assertAbsoluteDir(dpath);
         return this.removeItem(dpath);
     }
+    keys() {
+        return this.storage.keys();
+    }
+    async reload(key:string) {
+        return await this.storage.reload(key);
+    }
     export(path:string|undefined) {
         if (!path) return this.storage;
-        const res={} as Storage;
-        for (let k in this.storage) {
-            if (k.startsWith(path)) res[k]=this.storage[k];
+        const res={} as Record<string,string>;
+        for (let k of this.storage.keys()) {
+            if (k.startsWith(path)) res[k]=this.storage.getItem(k)!;
         }
         return res;
     }
-    import(obj:Storage) {
+    import(obj:Record<string,string>) {
         for (let k in obj) {
-            this.storage[k]=obj[k];
+            this.storage.setItem(k,obj[k]);
         }
     }
 }
@@ -246,7 +242,7 @@ class CachedStorage implements CacheableStorage {
     }
     reservedDirInfos=new Set<string>();
     reservedContents=new Set<string>();
-    constructor(public storage:Storage, public mountPoint:string){
+    constructor(public storage:IStorage, public mountPoint:string){
         this.raw=new NoCacheStorage(storage, mountPoint);
     }
     getContentItem(regPath: string): Content {
@@ -317,9 +313,12 @@ class CachedStorage implements CacheableStorage {
         this.commit();
         return this.raw.export(path);
     }
-    import(obj:Storage) {
+    import(obj:Record<string,string>) {
         this.commit();
         return this.raw.import(obj);  
+    }
+    async reload(key:string) {
+        return await this.raw.reload(key);
     }
 }
 export class LSFS extends FS {
@@ -330,10 +329,10 @@ export class LSFS extends FS {
     hasUncommited() {
         return this.cachedStorage.hasUncommited();
     }
-    constructor(rootFS:RootFS, mountPoint: string, public storage:Storage, {readOnly}:LSFSOptions={}) {
+    constructor(rootFS:RootFS, mountPoint: string, public storage:IStorage, {readOnly}:LSFSOptions={}) {
         assert(storage, " new LSFS fail: no storage");
         super(rootFS, mountPoint);
-        if (!storage["/"]) storage["/"] = "{}";
+        if (!storage.itemExists("/")) storage.setItem("/","{}");
         this.readOnly=!!readOnly;
         this.cachedStorage=new CachedStorage(storage, mountPoint);
     }
@@ -354,80 +353,20 @@ export class LSFS extends FS {
         };
     }
     static ramDisk(rootFS:RootFS, mountPoint:string, options:LSFSOptions={readOnly:false}) {
-        const s:Storage = {};
-        s[mountPoint] = "{}";
+        const s:IStorage = new MemoryStorage({});
+        s.setItem(mountPoint, "{}");
         options = options || {};
         return new LSFS(rootFS, mountPoint, s , options);
     }
     static now = now;
-    //private methods
-    /*private resolveKey(fixedPath:string):string {
-        assertAbsolute(fixedPath);
-        if (this.mountPoint) {
-            return P.SEP + P.relPath(fixedPath, this.mountPoint);
-        } else {
-            return fixedPath;
-        }
-    };*/
     private size(fixedPath: string):number {
         return this.cachedStorage.getContentItem(fixedPath).roughSize();
     }
-    /*private getItem(fixedPath:string) {
-        assertAbsolute(fixedPath);
-        const key = this.resolveKey(fixedPath);
-        assert(this.itemExists(fixedPath), `file(item) ${key} is not found.`);
-        return this.storage[key];
-    }
-    private itemExists(fixedPath:string) {
-        assertAbsolute(fixedPath);
-        const key = this.resolveKey(fixedPath);
-        return key in this.storage;
-    }
-    private itemOrDirCacheExists(dpath:string) {
-        return this.dirCache[dpath] || this.itemExists(dpath);
-    }
-    private setItem(fixedPath:string, value:string) {
-        assertAbsolute(fixedPath);
-        const key = this.resolveKey(fixedPath);
-        assert(key.indexOf("..") < 0);
-        assert(P.startsWith(key, P.SEP));
-        this.storage[key] = value;
-    }
-    private removeItem(fixedPath:string, nocheck=false) {
-        assertAbsolute(fixedPath);
-        const key = this.resolveKey(fixedPath);
-        assert(nocheck || (key in this.storage), `removeItem: ${key} is not in storage`);
-        delete this.storage[key];
-    }
-    private removeItemAndCache(fixedPath:string) {
-        assertAbsolute(fixedPath);
-        if (this.dirCache[fixedPath]) {
-            delete this.dirCache[fixedPath];
-            // item creation may delayed, nocheck
-            return this.removeItem(fixedPath, true);
-        }
-        return this.removeItem(fixedPath);
-    }*/
     private getDirInfo(dpath:string):DirInfo {
         assertAbsoluteDir(dpath);
         assert(this.inMyFS(dpath));
         return this.cachedStorage.getDirInfoItem(dpath);
-        /*if (this.dirCache[dpath]) return this.dirCache[dpath];
-        let dinfo: DirInfo;
-        const dinfos = this.getItem(dpath);
-        try {
-            dinfo = JSON.parse(dinfos);
-        } catch(e) {
-            throw new Error(`Malformed JSON found in ${dpath}`);
-        }
-        this.dirCache[dpath] = dinfo;
-        return dinfo;*/
     }
-    /*private setItemWithDirCache(dpath:string, dinfo:DirInfo) {
-        this.dirCache[dpath] = dinfo;
-        this.setMetaTimer.add(dpath);
-        //this.setItem(dpath, JSON.stringify(dinfo));  
-    }*/
     private putDirInfo(dpath:string, dinfo:DirInfo, removed:boolean) {
         assertAbsoluteDir(dpath);
         assert(this.inMyFS(dpath));
@@ -473,7 +412,7 @@ export class LSFS extends FS {
         }
     }
     private isRAM() {
-        return this.storage !== localStorage;
+        return this.storage instanceof MemoryStorage;
     }
     private fixPath(path:string, parent:string):[DirInfo, string, string] {
         const name=P_name(path);
@@ -744,7 +683,7 @@ export class LSFS extends FS {
     export(path:string|undefined) {
         return this.cachedStorage.export(path);
     }
-    import(obj:Storage) {
+    import(obj:Record<string,string>) {
         return this.cachedStorage.import(obj);  
     }
 }

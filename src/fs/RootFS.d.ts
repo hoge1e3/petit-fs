@@ -1,8 +1,9 @@
-import {default as FileSystem} from "./FSClass";
+import {AsyncOptions, default as FileSystem} from "./FSClass";
+import { LSFSOptions } from "./LSFS";
 export type Stats=import("node:fs").Stats;
 export type ObserverEvent={eventType:"change"|"rename"} & Stats;
 //export type FSTab={fs:FileSystem, mountPoint:string};
-type FSGenerator=(path:string)=>FileSystem;
+type FSDescriptor={factory:(path:string)=>FileSystem, asyncOptions?:AsyncOptions};
 export type FSTypeName=string;
 export type ObserverHandler=(path:string, event:ObserverEvent)=>void;
 export type Observer={
@@ -19,9 +20,10 @@ export default class RootFS {
     fstab(): FileSystem[];
     hasUncommited():boolean;
     umount(mountedPoint:string):void;
-    mount(mountPoint:string, fs:FileSystem|FSTypeName):void;
+    mount(mountPoint:string, fs:FileSystem|FSTypeName, options?:LSFSOptions):void;
+    mountAsync(mountPoint:string, fs:FSTypeName, options?:LSFSOptions):Promise<void>;
     resolveFS(path:string):FileSystem;
     addObserver(path:string, handler: ObserverHandler):Observer;
     notifyChanged(path:string, watchEvent:WatchEvent):void;
-    availFSTypes():{[key:FSTypeName]: FSGenerator};
+    availFSTypes():{[key:FSTypeName]: FSDescriptor};
 }

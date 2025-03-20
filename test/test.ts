@@ -80,6 +80,7 @@ try {
     const r=root.rel.bind(root);
     fs.mkdirSync("/zip/");
     fs.mountSync("/zip/","ram");
+    await fs.mount("/idb/","idb");
     assert.eq(fs.readdirSync("/").filter((n)=>n==="zip").length, 1);
     assert(fs.readdirSync("/").every((n)=>!n.includes("/")));
     assert.eq(fs.readdirSync("/",{withFileTypes:true}).filter((e)=>e.name==="zip").length, 1);
@@ -126,6 +127,7 @@ try {
     if (!testfn.exists()) {
         pass=1;
         _console.log("Test #", pass);
+        await testIDB(pass, fixture, root.rel("idb/"));
         testdir = root.rel(/*Math.random()*/"testdir" + "/");
         _console.log("Enter", testdir);
         if (testdir.exists()) testdir.rm({ r: true });
@@ -216,9 +218,9 @@ try {
         fixture.rel("sub/test.png").dataURL(pngurl);
 
         fixture.rel("sub/test.png").copyTo(testdir.rel("test.png"));
-        chkCpy(fixture.rel("Tonyu/Projects/MapTest/Test.tonyu"));
-        chkCpy(fixture.rel("Tonyu/Projects/MapTest/images/park.png"));
-        chkCpy(testdir.rel("test.png"));
+        testCopyFile(fixture.rel("Tonyu/Projects/MapTest/Test.tonyu"));
+        testCopyFile(fixture.rel("Tonyu/Projects/MapTest/images/park.png"));
+        testCopyFile(testdir.rel("test.png"));
         testdir.rel("test.png").rm();
         //---- test append
         let beforeAppend = fixture.rel("Tonyu/Projects/MapTest/Test.tonyu");
@@ -233,7 +235,7 @@ try {
     
         _console.log("text.txt", testdir.rel("test.txt").path(), testdir.rel("test.txt").text());
         testdir.rel("test.txt").text(romd.rel("Actor.tonyu").text() + ABCD + CDEF);
-        chkCpy(testdir.rel("test.txt"));
+        testCopyFile(testdir.rel("test.txt"));
         testdir.rel("test.txt").text(ABCD);
         //testEach(testd);
         //--- the big file
@@ -249,7 +251,7 @@ try {
         let b = f.getBlob();
         _console.log("BLOB reading...", f.name(), tmp.name());
         await tmp.setBlob(b);
-        checkSame(f, tmp);
+        checkSameFile(f, tmp);
         _console.log("BLOB read done!", f.name(), tmp.name());
         tmp.rm();
         f.rm();
@@ -261,6 +263,7 @@ try {
         try {
             pass=2;
             _console.log("Test #", pass);
+            await testIDB(pass, fixture, root.rel("idb/"));
             //testf = root.rel("testfn.txt");
             testdir = FS.get(testfn.text());
             assert(testdir.exists());
@@ -275,7 +278,7 @@ try {
             chkRecur(testdir, {}, ["test.txt","sub/test2.txt"]);
             //_console.log("testd.size", testd.size());
             //assert.eq(testd.size(), ABCD.length + testd.rel("sub/test2.txt").size(), "testd.size");
-            eqa(testdir.ls(), ["test.txt","sub/"]);
+            eqaSorted(testdir.ls(), ["test.txt","sub/"]);
             chkRecur(testdir, { excludes: ["sub/"] }, ["test.txt"]);
             testdir.rel("test.txt").rm();
             chkRecur(testdir, {}, ["sub/test2.txt"]);
@@ -396,15 +399,15 @@ async function chkBigFile(testd: SFile) {
         });//.then(DU.NOP, DU.E);
     }
 }*/
-function chkCpy(f:SFile) {
+function testCopyFile(f:SFile) {
     let tmp = f.sibling("tmp_" + f.name());
     f.copyTo(tmp);
-    checkSame(f, tmp);
+    checkSameFile(f, tmp);
     tmp.text("DUMMY");
 
     let c = f.getContent();
     tmp.setContent(c);
-    checkSame(f, tmp);
+    checkSameFile(f, tmp);
     tmp.text("DUMMY");
 
     let t:string;
@@ -412,13 +415,13 @@ function chkCpy(f:SFile) {
         // plain->plain(.txt) / url(bin->URL)->url(URL->bin) (.bin)
         t = f.text();
         tmp.text(t);
-        checkSame(f, tmp);
+        checkSameFile(f, tmp);
         tmp.text("DUMMY");
     }
     // url(bin->URL)->url(URL->bin)
     t = f.dataURL();
     tmp.dataURL(t);
-    checkSame(f, tmp);
+    checkSameFile(f, tmp);
     tmp.text("DUMMY");
 
     // bin->bin
@@ -428,7 +431,7 @@ function chkCpy(f:SFile) {
     _console.log("tmp.getBytes",tmp.getBytes());
     //_console.log(peekStorage(f));
     //_console.log(peekStorage(tmp));
-    checkSame(f, tmp);
+    checkSameFile(f, tmp);
     
     // bin->Uint8Array->bin
     let c2=Content.bin(b, f.contentType());
@@ -444,12 +447,12 @@ function chkCpy(f:SFile) {
         c = Content.bin(b, "text/plain");
         t = c.toPlainText();
         tmp.setText(t);
-        checkSame(f, tmp);
+        checkSameFile(f, tmp);
         tmp.text("DUMMY");
     }
     tmp.rm({r:true});
 }
-function checkSame(a:SFile, b:SFile) {
+function checkSameFile(a:SFile, b:SFile) {
     _console.log("check same", a.name(), b.name(), a.size(), b.size());
     if(a.isText() && b.isText() && a.text() !== b.text()) {
         throw new Error("text is not match: " + a + "!=" + b+"\n"+
@@ -464,6 +467,28 @@ function checkSame(a:SFile, b:SFile) {
     assert(a1.length == b1.length, "length is not match: " + a + "," + b);
     for (let i = 0; i < a1.length; i++) assert(a1[i] == b1[i], "failed at [" + i + "]");
 }
+function checkSameDirContents(d1:SFile, d2:SFile) {
+    let ls1 = d1.ls();
+    let ls2 = d2.ls();
+    eqaSorted(ls1, ls2);
+    for (let name of ls1) {
+        const f1= d1.rel(name);
+        const f2= d2.rel(name);
+        assert((f1.isDir() === f2.isDir()), "isDirSame");
+        if (f1.isDir()) {
+            checkSameDirContents(f1, f2);
+        } else {
+            let c1 = f1.getContent();
+            let c2 = f2.getContent();
+            checkSameContent(c1, c2, `${f1} ${f2}`);
+        }
+    }
+}
+function checkSameContent(c1:Content, c2:Content, tag="checkSameContent") {
+    assert(contEq(
+        new Uint8Array(c1.toArrayBuffer()), 
+        new Uint8Array(c2.toArrayBuffer())), tag);
+}
 function contEq(a:Uint8Array|string, b:Uint8Array|string) {
     if (typeof a!==typeof b)return false;
     if (typeof a==="string") return a===b;
@@ -474,19 +499,18 @@ function contEq(a:Uint8Array|string, b:Uint8Array|string) {
     for (let i = 0; i < a.length; i++) if (a[i]!==b[i]) return false;
     return true;
 }
-
-function eqa(actual:any[],expected:any[]) {
-    _assert.deepStrictEqual(actual.sort().join(","),expected.sort().join(","));
+function eqaSorted(actual:any[],expected:any[]) {
+    _assert.deepStrictEqual(actual.sort(),expected.sort());
 }
 function chkRecur(dir:SFile, options:DirectoryOptions, expected:string[]) {
     const di = [] as string[];
     dir.recursive(function (f) {
         di.push(f.relPath(dir));
     }, {...options, cache: true,});
-    eqa(di, expected);
+    eqaSorted(di, expected);
     let t = dir.getDirTree({excludes:options.excludes,style:"flat-relative"});
     _console.log("getDirTree",dir, t);
-    eqa(Object.keys(t), expected);
+    eqaSorted(Object.keys(t), expected);
 }
 function testContent() {
     let C = Content;
@@ -807,8 +831,17 @@ async function extractFixture(to:SFile){
         }
     }
 }
-
-}
-// of main()
+async function testIDB(pass:number, fixture:SFile, idbdir:SFile) {
+    if (pass==1) {
+        fixture.copyTo(idbdir);
+        checkSameDirContents(fixture, idbdir);
+    } else {
+        checkSameDirContents(fixture, idbdir);
+        // Cannot remove mountPoint
+        //idbdir.rm({r:true});
+        for (let f of idbdir.listFiles()) f.rm({r:true});
+    }
+} 
+}// of main()
 //(globalThis as any).main=main;
 main();

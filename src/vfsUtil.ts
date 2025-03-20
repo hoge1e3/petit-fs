@@ -9,7 +9,7 @@ import { getRootFS } from "./fs/index.js";
 import Content from "./fs/Content.js";
 import FSClass, { Dirent } from "./fs/FSClass.js";
 import PathUtil from "./fs/PathUtil.js";
-import RootFS, { ObserverEvent, ObserverHandler } from "./fs/RootFS.js";
+import RootFS, { FSTypeName, ObserverEvent, ObserverHandler } from "./fs/RootFS.js";
 
 export const path={
     isAbsolute(path:string) {
@@ -239,10 +239,16 @@ export class FileSystem {
      * @param mountPoint The path in this virtual file system.
      * @param resolver An object used to resolve files in `source`.
      */
-    public mountSync(mountPoint: string, resolver: FSClass|string): void {
+    public mountSync(mountPoint: string, resolver: FSClass|FSTypeName, options:any={}): void {
         const rfs=getRootFS();
         mountPoint=PathUtil.directorify(mountPoint);
-        rfs.mount(mountPoint, resolver);
+        rfs.mount(mountPoint, resolver,options);
+        this.clearLinkCache();
+    }
+    public async mount(mountPoint: string, resolver: FSTypeName, options:any={}) {
+        const rfs=getRootFS();
+        mountPoint=PathUtil.directorify(mountPoint);
+        await rfs.mountAsync(mountPoint, resolver);
         this.clearLinkCache();
     }
 

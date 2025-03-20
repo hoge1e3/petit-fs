@@ -1,6 +1,9 @@
 import { default as RootFS, FSTypeName, Stats } from "./RootFS";
 import Content from "./Content";
-import { Dir } from "fs";
+export type AsyncOptions={
+    asyncOnMount?: boolean,
+    asyncOnAccess?: boolean,// Not Implemented
+};
 export type Dirent={
     name: string;
     parentPath?: string;
@@ -13,7 +16,8 @@ export type Dirent={
     isSocket(): boolean;
     extra?: any;
 }
-
+export type FSFactory=(rootFS:RootFS, mountPoint:string, options:object)=>FileSystem;
+export type AsyncFSFactory=(rootFS:RootFS, mountPoint:string, options:object)=>Promise<FileSystem>;
 export default abstract class FileSystem {
     constructor(rootFS:RootFS, mountPoint:string);
     fstype():FSTypeName;
@@ -49,7 +53,7 @@ export default abstract class FileSystem {
     //getURL(path:string):string;
     onAddObserver(path:string):void;
     //abstract isDir(path:string):boolean;
-    static addFSType(name:string, fsgen:(rootFS:RootFS, mountPoint:string, options:object)=>FileSystem):void;
+    static addFSType(name:string, factory:FSFactory|AsyncFSFactory, asyncOptions?:AsyncOptions):void;
     inMyFS(path:string):boolean;
     //resolveLink(path:string):string;
 

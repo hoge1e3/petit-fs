@@ -39,11 +39,19 @@ var p = {
     mount: function (mountPoint, fs, options) {
         assert.is(mountPoint, String);
         if (typeof fs == "string") {
-            var fact = assert(FS.availFSTypes()[fs], "fstype " + fs + " is undefined.");
-            fs = fact(this, mountPoint, options || {});
+            const {factory, asyncOptions} = assert(FS.availFSTypes()[fs], "fstype " + fs + " is undefined.");
+            if (asyncOptions.asyncOnMount) {
+                throw new Error(`The FS type '${fs}' requires async mount. Use mountAsync instead.`);
+            }
+            fs = factory(this, mountPoint, options || {});
         }
         assert.is(fs, FS);
-        //fs.mounted(this, path);
+        this.fstab().unshift(fs);
+    },
+    async mountAsync(mountPoint, fsType, options) {
+        const {factory, asyncOptions} = assert(FS.availFSTypes()[fsType], "fstype " + fsType + " is undefined.");
+        const fs = await factory(this, mountPoint, options || {});
+        assert.is(fs, FS);
         this.fstab().unshift(fs);
     },
     resolveFS: function (path, options) {

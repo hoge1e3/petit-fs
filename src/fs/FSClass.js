@@ -8,8 +8,8 @@ var FS = function (rootFS, mountPoint) {
     this.mountPoint = mountPoint;
 };
 var fstypes = {};
-FS.addFSType = function (name, fsgen) {
-    fstypes[name] = fsgen;
+FS.addFSType = function (name, factory, asyncOptions={}) {
+    fstypes[name] = {factory,asyncOptions};
 };
 FS.availFSTypes = function () {
     return fstypes;

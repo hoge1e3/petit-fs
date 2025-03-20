@@ -6,6 +6,7 @@ import Content from "./Content.js";
 import {assert} from "chai";
 import RootFS, { Stats, WatchEvent } from "./RootFS.js";
 import {IStorage, LocalStorageWrapper, MemoryStorage} from "./StorageWrapper.js";
+import { SyncIDBStorage } from "sync-idb-kvs";
 //const isDir = P.isDir.bind(P);
 const up = P.up.bind(P);
 //const endsWith = P.endsWith.bind(P);
@@ -64,7 +65,11 @@ export type MetaInfo={
     link?: string,
     trashed?: boolean,
 };
-export type LSFSOptions={readOnly?:boolean};
+export type LSFSOptions={
+    readOnly?:boolean,
+    // For IDB
+    dbName?: string, storeName?: string,
+};
 //export type LSFSConstructorOptions={mountPoint?: string}&LSFSOptions;
 export type DirInfo={[key:string]:MetaInfo};
 FS.addFSType("localStorage", function (rootFS:RootFS, mountPoint:string, options:LSFSOptions) {
@@ -73,6 +78,12 @@ FS.addFSType("localStorage", function (rootFS:RootFS, mountPoint:string, options
 FS.addFSType("ram", function (rootFS:RootFS, mountPoint:string, options:LSFSOptions) {
     return LSFS.ramDisk(rootFS, mountPoint, options);
 });
+FS.addFSType("idb", async function (rootFS:RootFS, mountPoint:string, options:LSFSOptions={}) {
+    const {dbName="petit-fs", storeName="kvStore"}=options;
+    const storage=await SyncIDBStorage.create(dbName, storeName);
+    if (!storage.itemExists(mountPoint)) storage.setItem(mountPoint, "{}");  
+    return new LSFS(rootFS, mountPoint, storage, options);
+},{asyncOnMount:true});
 function assertAbsolute(path:string) {
     assert(P.isAbsolutePath(path), path + " is not absolute path");
 }
@@ -332,7 +343,7 @@ export class LSFS extends FS {
     constructor(rootFS:RootFS, mountPoint: string, public storage:IStorage, {readOnly}:LSFSOptions={}) {
         assert(storage, " new LSFS fail: no storage");
         super(rootFS, mountPoint);
-        if (!storage.itemExists("/")) storage.setItem("/","{}");
+        if (!storage.itemExists(mountPoint)) storage.setItem(mountPoint,"{}");
         this.readOnly=!!readOnly;
         this.cachedStorage=new CachedStorage(storage, mountPoint);
     }

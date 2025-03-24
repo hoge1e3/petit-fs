@@ -1,11 +1,4 @@
-export interface IStorage {
-    setItem(key: string, value: string): void;
-    getItem(key: string): string | null;
-    removeItem(key: string): void;
-    itemExists(key: string): boolean;
-    keys(): IterableIterator<string>; 
-    reload(key:string):Promise<string|null>;
-}
+import { IStorage } from "sync-idb-kvs";
 export class MemoryStorage implements IStorage {
     constructor(private store: Record<string, string> = {}){}
     setItem(key: string, value: string): void {

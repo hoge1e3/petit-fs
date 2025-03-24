@@ -47,6 +47,6 @@
   "dependencies": {
     "buffer": "^6.0.3",
     "chai": "^5.1.2",
-    "sync-idb-kvs": "^1.2.8"
+    "sync-idb-kvs-multi": "^1.2.9"
   }
 }

@@ -5,8 +5,9 @@ import P from "./PathUtil.js";
 import Content from "./Content.js";
 import {assert} from "chai";
 import RootFS, { Stats, WatchEvent } from "./RootFS.js";
-import {IStorage, LocalStorageWrapper, MemoryStorage} from "./StorageWrapper.js";
-import { SyncIDBStorage } from "sync-idb-kvs";
+import { LocalStorageWrapper, MemoryStorage} from "./StorageWrapper.js";
+import { IStorage } from "sync-idb-kvs";
+import { MultiSyncIDBStorage } from "sync-idb-kvs-multi";
 //const isDir = P.isDir.bind(P);
 const up = P.up.bind(P);
 //const endsWith = P.endsWith.bind(P);
@@ -80,7 +81,7 @@ FS.addFSType("ram", function (rootFS:RootFS, mountPoint:string, options:LSFSOpti
 });
 FS.addFSType("idb", async function (rootFS:RootFS, mountPoint:string, options:LSFSOptions={}) {
     const {dbName="petit-fs", storeName="kvStore"}=options;
-    const storage=await SyncIDBStorage.create(dbName, storeName);
+    const storage=await MultiSyncIDBStorage.create(dbName, storeName);
     if (!storage.itemExists(mountPoint)) storage.setItem(mountPoint, "{}");  
     return new LSFS(rootFS, mountPoint, storage, options);
 },{asyncOnMount:true});
@@ -115,8 +116,6 @@ interface CacheableStorage {
     hasDirInfoItem(dirPath:string):boolean;
     setDirInfoItem(dirPath:string, d:DirInfo):void;
     removeDirInfoItem(dirPath:string):void;
-
-
 }
 class NoCacheStorage implements CacheableStorage {
     constructor(public storage:IStorage, public mountPoint:string){}
@@ -255,6 +254,15 @@ class CachedStorage implements CacheableStorage {
     reservedContents=new Set<string>();
     constructor(public storage:IStorage, public mountPoint:string){
         this.raw=new NoCacheStorage(storage, mountPoint);
+        if (storage instanceof MultiSyncIDBStorage) {
+            storage.addEventListener("change", ({key})=>{
+                if (key.endsWith("/")) {
+                    this.dirInfoCache.delete(key);
+                } else {    
+                    this.contentCache.delete(key);
+                }
+            });
+        }
     }
     getContentItem(regPath: string): Content {
         assertAbsoluteRegular(regPath);
@@ -346,6 +354,16 @@ export class LSFS extends FS {
         if (!storage.itemExists(mountPoint)) storage.setItem(mountPoint,"{}");
         this.readOnly=!!readOnly;
         this.cachedStorage=new CachedStorage(storage, mountPoint);
+        if (storage instanceof MultiSyncIDBStorage) {
+            storage.addEventListener("change",({key})=>setTimeout(()=>{
+                // setTimeout is used because the cacheStorage may keep old data (by event order). See constructor of CachedStorage.
+                if (!this.exists(key)) {
+                    this.getRootFS().notifyChanged(key, {eventType:"delete"});   
+                } else {
+                    this.getRootFS().notifyChanged(key, {eventType:"change", ...this.lstat(key)}); 
+                }
+            },100));
+        }
     }
     static meta2dirent(parentPath:string, fixedName:string, lstat:Stats):Dirent {
         // fixedName: if the name refers to directory, it MUST end with /

@@ -6,8 +6,9 @@
   "main": "src/index.js",
   "types": "src/index.d.ts",
   "scripts": {
-    "build-dev": "npx tsc && npx webpack --mode=development",
-    "build": "npx tsc && npx webpack --mode=production",
+    "tsc": "npx tsc",
+    "webpack-dev": "npx webpack --mode=development",
+    "webpack": "npx webpack --mode=production",
     "test": "npx http-server -o test/index.html"
   },
   "files": [

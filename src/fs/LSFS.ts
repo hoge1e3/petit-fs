@@ -389,6 +389,7 @@ export class LSFS extends FS {
     }
     static now = now;
     private size(fixedPath: string):number {
+        if (P.isDir(fixedPath)) return 1;//TODO
         return this.cachedStorage.getContentItem(fixedPath).roughSize();
     }
     private getDirInfo(dpath:string):DirInfo {

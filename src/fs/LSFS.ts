@@ -3,12 +3,13 @@
 import FS, { Dirent } from "./FSClass.js";
 import P from "./PathUtil.js";
 import Content from "./Content.js";
-import {assert} from "chai";
+import {ok} from "@hoge1e3/assert";
 import RootFS, { Stats, WatchEvent } from "./RootFS.js";
 import { LocalStorageWrapper, MemoryStorage} from "./StorageWrapper.js";
 import { IStorage } from "sync-idb-kvs";
 import { MultiSyncIDBStorage } from "sync-idb-kvs-multi";
 //const isDir = P.isDir.bind(P);
+const assert:(value:any, message?:string)=>asserts value=ok;
 const up = P.up.bind(P);
 //const endsWith = P.endsWith.bind(P);
 const P_name = P.name.bind(P);

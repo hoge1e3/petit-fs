@@ -845,7 +845,7 @@ async function testIDB(pass:number, fixture:SFile, idbdir:SFile) {
                 resolve(void 0);
             });
         });
-        new Worker("./worker.webpack.js");
+        new Worker("./worker.webpack.js",{type:"module"});
         await p;
         console.log("new README", README.text());   
         assert.eq(README.text(), orig_README+"Hello");

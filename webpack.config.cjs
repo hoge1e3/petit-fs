@@ -60,7 +60,7 @@ module.exports = (env,argv)=>["esm","umd","test"].map((type)=>({
     resolve: {
         // 拡張子を配列で指定
         extensions: [
-            /*'.ts',*/ '.js',
+            '.js',
         ],
     },
     plugins: [

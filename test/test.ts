@@ -837,6 +837,18 @@ async function testIDB(pass:number, fixture:SFile, idbdir:SFile) {
         checkSameDirContents(fixture, idbdir);
     } else {
         checkSameDirContents(fixture, idbdir);
+        const README=idbdir.rel("README.txt");
+        const orig_README=README.text();
+        const p=new Promise((resolve, reject) => {
+            idbdir.watch((type, f) => {
+                _console.log("watch", type, f.path());
+                resolve(void 0);
+            });
+        });
+        new Worker("./worker.webpack.js");
+        await p;
+        console.log("new README", README.text());   
+        assert.eq(README.text(), orig_README+"Hello");
         // Cannot remove mountPoint
         //idbdir.rm({r:true});
         for (let f of idbdir.listFiles()) f.rm({r:true});

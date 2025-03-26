@@ -17,3 +17,6 @@ src/index.js.map
 src/fs/LSFS.d.ts
 src/index.d.ts
 test/test.d.ts
+src/fs/StorageWrapper.d.ts
+src/fs/StorageWrapper.js
+src/fs/StorageWrapper.js.map

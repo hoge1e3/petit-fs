@@ -47,7 +47,7 @@
   },
   "dependencies": {
     "buffer": "^6.0.3",
-    "@hoge1e3/assert": "^5.1.2",
+    "@hoge1e3/assert": "^2.1.2",
     "sync-idb-kvs-multi": "^1.2.9"
   }
 }

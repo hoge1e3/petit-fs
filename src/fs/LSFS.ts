@@ -258,8 +258,10 @@ class CachedStorage implements CacheableStorage {
         if (storage instanceof MultiSyncIDBStorage) {
             storage.addEventListener("change", ({key})=>{
                 if (key.endsWith("/")) {
+                    this.reservedDirInfos.delete(key);
                     this.dirInfoCache.delete(key);
                 } else {    
+                    this.reservedContents.delete(key);
                     this.contentCache.delete(key);
                 }
             });

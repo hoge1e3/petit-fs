@@ -54,6 +54,7 @@ module.exports = (env,argv)=>["esm","umd","test","test_worker"].map((type)=>({
         parser: {
           javascript: {
             importMeta: !env.production,
+            commonjsMagicComments: true
           },
         },
     },

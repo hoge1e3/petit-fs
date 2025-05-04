@@ -120,6 +120,7 @@ export const process={
     },
     nextTick() {
     },
+    versions:{},
 };
 
 // file type

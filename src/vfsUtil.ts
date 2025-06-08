@@ -779,7 +779,18 @@ export class FileSystem {
         e.close();
         this.fdEntries.delete(fd);
     }
-
+    constants={
+        R_OK:"R_OK",
+        W_OK:"W_OK",
+    };
+    accessSync(path:string, type:string) {
+        const [fs, fpath]=this.resolveLink(path);
+        if (type==="W_OK") {
+            if (fs.isReadOnly(fpath)) {
+                throw new Error(`${path} is read only.`);
+            }
+        }
+    }
 }
 
 export interface FileSystemOptions {

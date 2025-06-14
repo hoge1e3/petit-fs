@@ -53,8 +53,9 @@ export const path={
         to=this.toAbsolute(to);
         return PathUtil.relPath(to,PathUtil.directorify(from));
     },
-    dirname(path:string) {
-        return PathUtil.up(path);
+    dirname(path:string):string {
+        const r=PathUtil.up(path);
+        return r || path;
     },
     extname(path:string) {
         return PathUtil.ext(path);

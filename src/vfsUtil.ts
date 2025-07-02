@@ -205,6 +205,7 @@ export class FileSystem {
     fdseq=1;
     fdEntries=new Map<number, FdEntry>();
     linkCache=new Map<string, [FSClass, string]>();
+    promises=new FileSystem_Promises(this);
     clearLinkCache(){
         this.linkCache=new Map<string, [FSClass, string]>();
     }
@@ -1040,3 +1041,156 @@ export class Mount {
 type FileDataBuffer = { encoding?: undefined; data: Buffer; } | { encoding: BufferEncoding; data: string; };
 
 
+export class FileSystem_Promises {
+    constructor(public fs:FileSystem){}
+    async appendFile(...args:Parameters<FileSystem["appendFileSync"]>) {
+        return this.fs.appendFileSync(...args);
+    }
+    async access(...args:Parameters<FileSystem["accessSync"]>) {
+        return this.fs.accessSync(...args);
+    }
+    /*async chown(...args:Parameters<FileSystem["chownSync"]>) {
+        return this.fs.chownSync(...args);
+    }
+    async chmod(...args:Parameters<FileSystem["chmodSync"]>) {
+        return this.fs.chmodSync(...args);
+    }*/
+    async close(...args:Parameters<FileSystem["closeSync"]>) {
+        return this.fs.closeSync(...args);
+    }
+    /*async copyFile(...args:Parameters<FileSystem["copyFileSync"]>) {
+        return this.fs.copyFileSync(...args);
+    }*/
+    async cp(...args:Parameters<FileSystem["cpSync"]>) {
+        return this.fs.cpSync(...args);
+    }
+    async exists(...args:Parameters<FileSystem["existsSync"]>) {
+        return this.fs.existsSync(...args);
+    }
+    /*async fchown(...args:Parameters<FileSystem["fchownSync"]>) {
+        return this.fs.fchownSync(...args);
+    }
+    async fchmod(...args:Parameters<FileSystem["fchmodSync"]>) {
+        return this.fs.fchmodSync(...args);
+    }
+    async fdatasync(...args:Parameters<FileSystem["fdatasyncSync"]>) {
+        return this.fs.fdatasyncSync(...args);
+    }
+    async fstat(...args:Parameters<FileSystem["fstatSync"]>) {
+        return this.fs.fstatSync(...args);
+    }
+    async fsync(...args:Parameters<FileSystem["fsyncSync"]>) {
+        return this.fs.fsyncSync(...args);
+    }
+    async ftruncate(...args:Parameters<FileSystem["ftruncateSync"]>) {
+        return this.fs.ftruncateSync(...args);
+    }
+    async futimes(...args:Parameters<FileSystem["futimesSync"]>) {
+        return this.fs.futimesSync(...args);
+    }
+    async lchown(...args:Parameters<FileSystem["lchownSync"]>) {
+        return this.fs.lchownSync(...args);
+    }
+    async lchmod(...args:Parameters<FileSystem["lchmodSync"]>) {
+        return this.fs.lchmodSync(...args);
+    }
+    */
+    async link(...args:Parameters<FileSystem["linkSync"]>) {
+        return this.fs.linkSync(...args);
+    }
+
+    async lstat(...args:Parameters<FileSystem["lstatSync"]>) {
+        return this.fs.lstatSync(...args);
+    }
+    /*async lutimes(...args:Parameters<FileSystem["lutimesSync"]>) {
+        return this.fs.lutimesSync(...args);
+    }*/
+    async mkdir(...args:Parameters<FileSystem["mkdirSync"]>) {
+        return this.fs.mkdirSync(...args);
+    }
+    /*async mkdtemp(...args:Parameters<FileSystem["mkdtempSync"]>) {
+        return this.fs.mkdtempSync(...args);
+    }*/
+    async open(...args:Parameters<FileSystem["openSync"]>) {
+        return this.fs.openSync(...args);
+    }
+    async readdir(...args:Parameters<FileSystem["readdirSync"]>) {
+        return this.fs.readdirSync(...args);
+    }
+    /*async read(...args:Parameters<FileSystem["readSync"]>) {
+        return this.fs.readSync(...args);
+    }
+    async readv(...args:Parameters<FileSystem["readvSync"]>) {
+        return this.fs.readvSync(...args);
+    }*/
+    async readFile(...args:Parameters<FileSystem["readFileSync"]>) {
+        return this.fs.readFileSync(...args);
+    }
+    async readlink(...args:Parameters<FileSystem["readlinkSync"]>) {
+        return this.fs.readlinkSync(...args);
+    }
+    async realpath(...args:Parameters<FileSystem["realpathSync"]>) {
+        return this.fs.realpathSync(...args);
+    }
+    async rename(...args:Parameters<FileSystem["renameSync"]>) {
+        return this.fs.renameSync(...args);
+    }
+    async rm(...args:Parameters<FileSystem["rmSync"]>) {
+        return this.fs.rmSync(...args);
+    }
+    async rmdir(...args:Parameters<FileSystem["rmdirSync"]>) {
+        return this.fs.rmdirSync(...args);
+    }
+    async stat(...args:Parameters<FileSystem["statSync"]>) {
+        return this.fs.statSync(...args);
+    }
+    /*async statfs(...args:Parameters<FileSystem["statfsSync"]>) {
+        return this.fs.statfsSync(...args);
+    }*/
+    async symlink(...args:Parameters<FileSystem["symlinkSync"]>) {
+        return this.fs.symlinkSync(...args);
+    }
+    /*async truncate(...args:Parameters<FileSystem["truncateSync"]>) {
+        return this.fs.truncateSync(...args);
+    }*/
+    async unlink(...args:Parameters<FileSystem["unlinkSync"]>) {
+        return this.fs.unlinkSync(...args);
+    }
+    async utimes(...args:Parameters<FileSystem["utimesSync"]>) {
+        return this.fs.utimesSync(...args);
+    }
+    async writeFile(...args:Parameters<FileSystem["writeFileSync"]>) {
+        return this.fs.writeFileSync(...args);
+    }
+    async write(...args:Parameters<FileSystem["writeSync"]>) {
+        return this.fs.writeSync(...args);
+    }
+    /*async writev(...args:Parameters<FileSystem["writevSync"]>) {
+        return this.fs.writevSync(...args);
+    }
+    async opendir(...args:Parameters<FileSystem["opendirSync"]>) {
+        return this.fs.opendirSync(...args);
+    }*/
+    /*
+Object.keys(fs)
+[
+  'appendFileSync', 'accessSync',    'chownSync',
+  'chmodSync',      'closeSync',     'copyFileSync',
+  'cpSync',         'existsSync',    'fchownSync',
+  'fchmodSync',     'fdatasyncSync', 'fstatSync',
+  'fsyncSync',      'ftruncateSync', 'futimesSync',
+  'lchownSync',     'lchmodSync',    'linkSync',
+  'lstatSync',      'lutimesSync',   'mkdirSync',
+  'mkdtempSync',    'openSync',      'readdirSync',
+  'readSync',       'readvSync',     'readFileSync',
+  'readlinkSync',   'realpathSync',  'renameSync',
+  'rmSync',         'rmdirSync',     'statSync',
+  'statfsSync',     'symlinkSync',   'truncateSync',
+  'unlinkSync',     'utimesSync',    'writeFileSync',
+  'writeSync',      'writevSync',    'opendirSync'
+].filter(s=>s.endsWith("Sync")).map(s=>`
+async ${s.substring(0,s.length-4)}(...args:Parameters<FileSystem["${s}"]>) {
+    return this.fs.${s}(...args);
+}`).join("\n")
+*/
+}

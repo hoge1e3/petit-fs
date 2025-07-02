@@ -21,3 +21,4 @@ src/fs/StorageWrapper.d.ts
 src/fs/StorageWrapper.js
 src/fs/StorageWrapper.js.map
 test/worker.webpack.js
+.tsbuildinfo

@@ -12,6 +12,9 @@ import PathUtil from "./fs/PathUtil.js";
 import RootFS, { FSTypeName, ObserverEvent, ObserverHandler } from "./fs/RootFS.js";
 
 export const path={
+    get default(){
+        return path;
+    },
     isAbsolute(path:string) {
         return PathUtil.isAbsolutePath(path);
     },

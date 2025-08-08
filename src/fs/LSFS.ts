@@ -256,6 +256,7 @@ class CachedStorage implements CacheableStorage {
     constructor(public storage:IStorage, public mountPoint:string){
         this.raw=new NoCacheStorage(storage, mountPoint);
         if (storage instanceof MultiSyncIDBStorage) {
+            /* storage.addEventListener may occurs in arbitrary order, See also constructor of LSFS  */
             storage.addEventListener("change", ({key})=>{
                 if (key.endsWith("/")) {
                     this.reservedDirInfos.delete(key);
@@ -358,12 +359,17 @@ export class LSFS extends FS {
         this.readOnly=!!readOnly;
         this.cachedStorage=new CachedStorage(storage, mountPoint);
         if (storage instanceof MultiSyncIDBStorage) {
-            storage.addEventListener("change",({key})=>setTimeout(()=>{
-                // setTimeout is used because the cacheStorage may keep old data (by event order). See constructor of CachedStorage.
+            /* storage.addEventListener may occurs in arbitrary order, See also constructor of CachedStorage  */
+            storage.addEventListener("change",({key,value})=>setTimeout(()=>{
+                // so setTimeout is used, it ensures occur after handler in constructor of CachedStorage
                 if (!this.exists(key)) {
                     this.getRootFS().notifyChanged(key, {eventType:"delete"});   
                 } else {
-                    this.getRootFS().notifyChanged(key, {eventType:"change", ...this.lstat(key)}); 
+                    const stat=this.lstat(key); // do not use ...spread, it also spreads size, that may be non-existent(* current implementation gets size from content)
+                    // Why may be non-existent? -> metaInfo and content may not match when many change events were sent via BroadcastChannel. 
+                    const statany=stat as any;
+                    statany.eventType="change";
+                    this.getRootFS().notifyChanged(key, statany); 
                 }
             },100));
         }
@@ -513,7 +519,14 @@ export class LSFS extends FS {
         }
         const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
         assert(pinfo[fixedName],`${path} does not exist.`);
-        return meta2stat(pinfo[fixedName], P.isDir(fixedName)&&!pinfo[fixedName].link, ()=>this.size(fixedPath) );
+        return meta2stat(pinfo[fixedName], P.isDir(fixedName)&&!pinfo[fixedName].link, ()=>{
+            try{
+                return this.size(fixedPath);
+            }catch(e) {
+                console.warn(fixedPath," is no longer existent. treated as size=0");
+                return 0;
+            }
+        });
     }
     public setMtime(path: string, time: number): void {
         this.assertExist(path);

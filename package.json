@@ -1,7 +1,7 @@
 {
   "type": "module",
   "name": "petit-fs",
-  "version": "1.4.6",
+  "version": "1.4.7",
   "description": "node/fs compatible interface for browser, using localStorage.",
   "main": "src/index.js",
   "types": "src/index.d.ts",
@@ -48,6 +48,6 @@
   "dependencies": {
     "buffer": "^6.0.3",
     "@hoge1e3/assert": "^2.1.4",
-    "sync-idb-kvs-multi": "^1.4.6"
+    "sync-idb-kvs-multi": "^1.4.7"
   }
 }

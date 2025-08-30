@@ -105,14 +105,14 @@ export const process={
         
     },
     __setfs(fs:FileSystem) {
-        process.__fs=fs;
+        this.__fs=fs;
     },
     cwd():string {
-        return process._cwd;
+        return this._cwd;
     },
     chdir(path:string) {
         if (!PathUtil.isAbsolutePath(path)) {
-            path=PathUtil.rel(process._cwd,path);
+            path=PathUtil.rel(this._cwd,path);
         }
         path=PathUtil.directorify(path);
         const fs=this.__fs;
@@ -123,7 +123,7 @@ export const process={
         if (!fs.statSync(path).isDirectory()) {
             throw new Error(`Not a directory: ${path}`);
         }
-        process._cwd=path;
+        this._cwd=path;
     },
     nextTick() {
     },

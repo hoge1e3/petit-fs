@@ -52,20 +52,6 @@ Assertion.prototype={
             return this.isBool()?true:value;
         }
         this.assert(value!=null,[value, "should be ",t]);
-        if (t instanceof Array || (typeof global=="object" && typeof global.Array=="function" && t instanceof global.Array) ) {
-            if (!value || typeof value.length!="number") {
-                return this.fail(value, "should be array:");
-            }
-            var self=this;
-            for (var i=0 ;i<t.length; i++) {
-                let na=self.subAssertion("failed at ",value,"[",i,"]: ");
-                if (t[i]==null) {
-                    console.log("WOW!7", v[i],t[i]);
-                }
-                na.is(v[i],t[i]);
-            }
-            return this.isBool()?true:value;
-        }
         if (t===String || t=="string") {
             this.assert(typeof(v)=="string",[v,"should be a string "]);
             return this.isBool()?true:value;
@@ -91,17 +77,31 @@ Assertion.prototype={
             this.assert((v instanceof t),[v, "should be ",t]);
             return this.isBool()?true:value;
         }
+        if (typeof t=="string") {
+            var ty=this._regedType[t];
+            if (ty) return this.is(value,ty);
+            //console.log("assertion Warning:","unregistered type:", t, "value:",value);
+            return this.isBool()?true:value;
+        }
+        if (t instanceof Array || (typeof global=="object" && typeof global.Array=="function" && t instanceof global.Array) ) {
+            if (!value || typeof value.length!="number") {
+                return this.fail(value, "should be array:");
+            }
+            var self=this;
+            for (var i=0 ;i<t.length; i++) {
+                let na=self.subAssertion("failed at ",value,"[",i,"]: ");
+                if (t[i]==null) {
+                    console.log("WOW!7", v[i],t[i]);
+                }
+                na.is(v[i],t[i]);
+            }
+            return this.isBool()?true:value;
+        }
         if (t && typeof t=="object") {
             for (var k in t) {
                 let na=this.subAssertion("failed at ",value,".",k,":");
                 na.is(value[k],t[k]);
             }
-            return this.isBool()?true:value;
-        }
-        if (typeof t=="string") {
-            var ty=this._regedType[t];
-            if (ty) return this.is(value,ty);
-            //console.log("assertion Warning:","unregistered type:", t, "value:",value);
             return this.isBool()?true:value;
         }
         return this.fail(value, "Invaild type: ",t);

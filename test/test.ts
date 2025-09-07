@@ -127,7 +127,7 @@ try {
     if (!testfn.exists()) {
         pass=1;
         _console.log("Test #", pass);
-        await testIDB(pass, fixture, root.rel("idb/"));
+        await testIDB(pass, fixture, root.rel("idb/pfs-test/"));
         testdir = root.rel(/*Math.random()*/"testdir" + "/");
         _console.log("Enter", testdir);
         if (testdir.exists()) testdir.rm({ r: true });
@@ -263,7 +263,7 @@ try {
         try {
             pass=2;
             _console.log("Test #", pass);
-            await testIDB(pass, fixture, root.rel("idb/"));
+            await testIDB(pass, fixture, root.rel("idb/pfs-test/"));
             //testf = root.rel("testfn.txt");
             testdir = FS.get(testfn.text());
             assert(testdir.exists());
@@ -849,7 +849,7 @@ async function testIDB(pass:number, fixture:SFile, idbdir:SFile) {
         await p;
         console.log("new README", README.text());   
         assert.eq(README.text(), orig_README+"Hello");
-        // Cannot remove mountPoint
+        // Cannot remove mountPoint. /idb/pfs-test is ok
         //idbdir.rm({r:true});
         for (let f of idbdir.listFiles()) f.rm({r:true});
     }

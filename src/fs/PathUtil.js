@@ -1,11 +1,13 @@
 //define(["assert"],function (assert) {
 import assert from "./assert.js";
 function endsWith(str,postfix) {
-    assert.is(arguments,[String,String]);
+    assert.is(str,String);
+    assert.is(postfix,String);
     return str.substring(str.length-postfix.length)===postfix;
 }
 function startsWith(str,prefix) {
-    assert.is(arguments,[String,String]);
+    assert.is(str,String);
+    assert.is(prefix,String);
     return str.substring(0, prefix.length)===prefix;
 }
 var driveLetter=/^([a-zA-Z]):/;
@@ -56,21 +58,18 @@ PathUtil={
         return {protocol:r[1], hostPort:r[2], path:SEP+path.substring(r[0].length)  };
     },
     isPath: function (path) {
-    	assert.is(arguments,[String]);
+		assert.is(path,String);
 		return true;//!path.match(/\/\//);
     },
     isRelativePath: function (path) {
-		assert.is(arguments,[String]);
 		return PathUtil.isPath(path) && !PathUtil.isAbsolutePath(path);
     },
     isAbsolutePath: function (path) {
-		assert.is(arguments,[String]);
 		return PathUtil.isPath(path) &&
 		(PathUtil.startsWith(path,SEP) || PathUtil.hasDriveLetter(path) ||  PathUtil.isURL(path));
     },
     isDir: function (path) {
         path=PathUtil.fixSep(path);
-		assert.is(arguments,[Path]);
         return endsWith(path,SEP);
     },
     hasBackslashSep:function (path) {
@@ -78,7 +77,7 @@ PathUtil={
     },
     fixSep: function (path,to) {
         to=to||"/";
-        assert.is(arguments,[String]);
+        assert.is(path,String);
         return assert.is( path.replace(/[\\\/]/g,to), Path);
     },
     directorify: function (path) {
@@ -92,7 +91,7 @@ PathUtil={
         return assert.is(path.substring(0,path.length-1),File);
     },
 	splitPath: function (path) {
-		assert.is(arguments,[Path]);
+		assert.is(path,Path);
 		var u=this.isURL(path);
 		if (u) {
 		    var p=this.splitPath(u.path);
@@ -108,11 +107,11 @@ PathUtil={
         return res;
     },
     name: function(path) {
-		assert.is(arguments,[String]);
+		assert.is(path,String);
         return PathUtil.splitPath(path).pop();
     },
     ext: function(path) {
-		assert.is(arguments,[String]);
+		assert.is(path,String);
         var n = PathUtil.name(path);
         var r = (/\.[a-zA-Z0-9]+$/).exec(n);
         if (r) return r[0];
@@ -126,21 +125,23 @@ PathUtil={
         return name.substring(0, name.length - ext.length);
     },
     truncSEP: function (path) {
-		assert.is(arguments,[Path]);
+		assert.is(path,Path);
 		if (!PathUtil.isDir(path)) return path;
 		return path.substring(0,path.length-1);
     },
     endsWith: function(path, postfix) {
-		assert.is(arguments,[String,String]);
+        assert.is(path,String);
+        assert.is(postfix,String);
         return endsWith(PathUtil.name(path), postfix);
     },
     parent: function(path) {
-		assert.is(arguments,[String]);
+        assert.is(path,String);
         return PathUtil.up(path);
     },
     rel: function(path,relPath) {
         if (relPath=="") return path;
-		assert.is(arguments,[AbsDir, Relative]);
+        assert.is(path, AbsDir);
+        assert.is(relPath, Relative);
     	var paths=PathUtil.splitPath(relPath);
         var resPath=path;
         resPath=resPath.replace(/\/$/,"");
@@ -155,8 +156,9 @@ PathUtil={
         return resPath;
     },
     relPath: function(path,base) {
-		assert.is(arguments,[Absolute,Absolute]);
-        if (path.substring(0,base.length)!=base) {
+        assert.is(path, Absolute);
+        assert.is(base, Absolute);
+		if (path.substring(0,base.length)!=base) {
             return "../"+PathUtil.relPath(path, this.up(base));
         }
         return path.substring(base.length);

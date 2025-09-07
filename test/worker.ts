@@ -9,7 +9,7 @@ const FS=new FileSystemFactory({
     Buffer,
 });
 const root=FS.get("/");
-const idbdir=root.rel("idb/");
+const idbdir=root.rel("idb/pfs-test");
 idbdir.rel("README.txt").appendText("Hello");
 
 

@@ -6,7 +6,7 @@ export {default as FSClass} from "./fs/FSClass.js";
 export {LSFS} from "./fs/LSFS.js";
 export {Buffer} from "buffer";
 export {default as PathUtil} from "./fs/PathUtil.js";
-export {default as Content} from "./fs/Content.js";
+//export {default as Content} from "./fs/Content.js";
 export {getRootFS} from "./fs/index.js";
 export const require=(module: string):any=>{
     if (module==="fs") return fs;

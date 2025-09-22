@@ -217,6 +217,7 @@ class NoCacheStorage implements CacheableStorage {
     }
 }
 type CacheStatus<T>={value:T}|"deleted";
+(globalThis as any).wakeTimercount=0;
 class CachedStorage implements CacheableStorage {
     raw: NoCacheStorage;
     dirInfoCache=new Map<string, CacheStatus<DirInfo>>();
@@ -227,6 +228,7 @@ class CachedStorage implements CacheableStorage {
     }
     private wakeTimer() {
         if (this.htimer!==undefined)return;
+        (globalThis as any).wakeTimercount++;
         this.htimer=setTimeout(()=>this.commit(), 1000);
     }
     clearCache() {

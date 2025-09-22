@@ -158,6 +158,7 @@ PathUtil={
     relPath: function(path,base) {
         assert.is(path, Absolute);
         assert.is(base, Absolute);
+        base=PathUtil.directorify(base);
 		if (path.substring(0,base.length)!=base) {
             return "../"+PathUtil.relPath(path, this.up(base));
         }

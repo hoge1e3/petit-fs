@@ -257,7 +257,7 @@ export class FileSystem {
     public async mount(mountPoint: string, resolver: FSTypeName, options:any={}) {
         const rfs=getRootFS();
         mountPoint=PathUtil.directorify(mountPoint);
-        await rfs.mountAsync(mountPoint, resolver);
+        await rfs.mountAsync(mountPoint, resolver,options);
         this.clearLinkCache();
     }
 

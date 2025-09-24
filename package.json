@@ -46,8 +46,9 @@
     "webpack-ignore-dynamic-require": "^1.0.0"
   },
   "dependencies": {
-    "buffer": "^6.0.3",
     "@hoge1e3/assert": "^2.1.4",
+    "buffer": "^6.0.3",
+    "mutable-promise": "^1.1.15",
     "sync-idb-kvs-multi": "^1.5.0"
   }
 }

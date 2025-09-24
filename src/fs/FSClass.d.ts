@@ -22,6 +22,7 @@ export default abstract class FileSystem {
     constructor(rootFS:RootFS, mountPoint:string);
     fstype():FSTypeName;
     abstract hasUncommited():boolean;
+    abstract commitPromise():Promise<void>;
     abstract isReadOnly(path:string):boolean;
     resolveFS(path:string):FileSystem;
     mountPoint: string;

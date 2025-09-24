@@ -308,10 +308,15 @@ try {
         }
     }
     if(ramd.exists()) await retryRmdir(ramd);
-    while (fs.getRootFS().hasUncommited()) {
+    const ct=performance.now();
+    console.log("Waiting for commit...");
+    await fs.getRootFS().commitPromise();
+    assert(!fs.getRootFS().hasUncommited());
+    console.log("commited for ",performance.now()-ct,"msec");
+    /*while (fs.getRootFS().hasUncommited()) {
         console.log("Waiting for commit...");
         await timeout(500);
-    }
+    }*/
     console.log("passed", "#"+pass);
     if (pass==1) {
         if (typeof location!=="undefined" && !location.href.match(/pass1only/)) location.reload();

@@ -21,6 +21,9 @@ var p = {
         }
         return false;
     },
+    commitPromise() {
+        return Promise.all(this.fstab().map(fs=>fs.commitPromise()));
+    },
     unmount: function (path, options) {
         assert.is(arguments, [P.AbsDir]);
         var t = this.fstab();

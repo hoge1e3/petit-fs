@@ -6,8 +6,9 @@ import Content from "./Content.js";
 import {ok} from "@hoge1e3/assert";
 import RootFS, { Stats, WatchEvent } from "./RootFS.js";
 import { LocalStorageWrapper, MemoryStorage} from "./StorageWrapper.js";
-import { IStorage } from "sync-idb-kvs";
+import { IStorage, SyncIDBStorage } from "sync-idb-kvs";
 import { MultiSyncIDBStorage } from "sync-idb-kvs-multi";
+import MutablePromise from "mutable-promise";
 //const isDir = P.isDir.bind(P);
 const assert:(value:any, message?:string)=>asserts value=ok;
 const up = P.up.bind(P);
@@ -223,8 +224,13 @@ class CachedStorage implements CacheableStorage {
     dirInfoCache=new Map<string, CacheStatus<DirInfo>>();
     contentCache=new Map<string, CacheStatus<Content>>();
     htimer:any=undefined;
+    _commitPromise=new MutablePromise<void>();
     hasUncommited() {
         return this.htimer!==undefined;
+    }
+    commitPromise(){
+        if (!this.hasUncommited()) return Promise.resolve();
+        return this._commitPromise;
     }
     private wakeTimer() {
         if (this.htimer!==undefined)return;
@@ -252,6 +258,8 @@ class CachedStorage implements CacheableStorage {
         this.reservedDirInfos=new Set<string>();
         this.reservedContents=new Set<string>();
         this.htimer=undefined;
+        this._commitPromise.resolve();
+        this._commitPromise=new MutablePromise();
     }
     reservedDirInfos=new Set<string>();
     reservedContents=new Set<string>();
@@ -353,6 +361,9 @@ export class LSFS extends FS {
     readOnly: boolean;
     hasUncommited() {
         return this.cachedStorage.hasUncommited();
+    }
+    commitPromise(){
+        return this.cachedStorage.commitPromise();
     }
     constructor(rootFS:RootFS, mountPoint: string, public storage:IStorage, {readOnly}:LSFSOptions={}) {
         assert(storage, " new LSFS fail: no storage");
@@ -464,6 +475,7 @@ export class LSFS extends FS {
     }
     //-----------------------------------
     public fstype() {
+        if (this.storage instanceof MultiSyncIDBStorage) return "IndexedDB";
         return (this.isRAM() ? "ramDisk" : "localStorage");
     }
     public isReadOnly() { return this.readOnly; }

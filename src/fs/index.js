@@ -1,5 +1,5 @@
 import A from "./assert.js";
-import _Content from "./Content.js";
+import {Content as _Content} from "@hoge1e3/Content";
 import FSClass from "./FSClass.js";
 import _Env from "./Env.js";
 import _RootFS from "./RootFS.js";

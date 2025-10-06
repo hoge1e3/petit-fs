@@ -6,7 +6,7 @@
 //import * as core from "./core";
 import {Buffer} from "buffer";
 import { getRootFS } from "./fs/index.js";
-import Content from "./fs/Content.js";
+import { Content } from "@hoge1e3/content";
 import FSClass, { Dirent } from "./fs/FSClass.js";
 import PathUtil from "./fs/PathUtil.js";
 import RootFS, { FSTypeName, ObserverEvent, ObserverHandler } from "./fs/RootFS.js";
@@ -656,7 +656,7 @@ export class FileSystem {
      *
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
-    public readFileSync(path: string, encoding?: null): Buffer; // eslint-disable-line no-restricted-syntax
+    public readFileSync(path: string, encoding?: null): Buffer<ArrayBuffer>; // eslint-disable-line no-restricted-syntax
     /**
      * Read from a file.
      *
@@ -668,7 +668,7 @@ export class FileSystem {
      *
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
-    public readFileSync(path: string, encoding?: BufferEncoding | null): string | Buffer; // eslint-disable-line no-restricted-syntax
+    public readFileSync(path: string, encoding?: BufferEncoding | null): string | Buffer<ArrayBuffer>; // eslint-disable-line no-restricted-syntax
     public readFileSync(path: string, encoding: BufferEncoding | null = null) { // eslint-disable-line no-restricted-syntax
         const [fs, fpath]=this.resolveLink(path);
         if (fs.lstat(fpath).isDirectory()) throw new Error(`Cannot read from directory: ${fpath}`);
@@ -693,7 +693,7 @@ export class FileSystem {
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
     // eslint-disable-next-line no-restricted-syntax
-    public writeFileSync(path: string, data: string | Buffer, encoding: string | null = null): void {
+    public writeFileSync(path: string, data: string | Buffer<ArrayBuffer>, encoding: string | null = null): void {
         if (this.isReadonly) throw createIOError("EROFS");
         const [fs, fpath]=this.resolveLink(path);
         if (fs.exists(fpath) && fs.lstat(fpath).isDirectory()) throw new Error(`Cannot write to directory: ${fpath}`);
@@ -712,7 +712,7 @@ export class FileSystem {
 
     }
 
-    public appendFileSync(path: string, data: string | Buffer, encoding: string | null = null): void {
+    public appendFileSync(path: string, data: string | Buffer<ArrayBuffer>, encoding: string | null = null): void {
         if (this.isReadonly) throw createIOError("EROFS");
         const [fs, fpath]=this.resolveLink(path);
         if (fs.exists(fpath) && fs.lstat(fpath).isDirectory()) throw new Error(`Cannot write to directory: ${fpath}`);

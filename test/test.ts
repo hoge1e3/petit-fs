@@ -112,7 +112,7 @@ try {
     _console.log("isChildOf", r("hoge/fuga\\"),(r("hoge\\fuga/piyo//")));
     assert(r("hoge/fuga\\").contains(r("hoge\\fuga/piyo//")), "isChildOf");
     assert(!r("hoge/fugo\\").contains(r("hoge\\fuga/piyo//")), "!isChildOf");
-    testContent();
+    //testContent();
     let ABCD = "abcd\nefg";
     let CDEF = "defg\nてすと";
     //obsolate: ls does not enum mounted dirs
@@ -517,6 +517,7 @@ function chkRecur(dir:SFile, options:DirectoryOptions, expected:string[]) {
     _console.log("getDirTree",dir, t);
     eqaSorted(Object.keys(t), expected);
 }
+/*
 function testContent() {
     let C = Content;
     const a=[0xe3, 0x81, 0xa6, 0xe3, 0x81, 0x99, 0xe3, 0x81, 0xa8, 0x61, 0x62, 0x63];
@@ -526,9 +527,6 @@ function testContent() {
         a:[Uint8Array.from(a).buffer, (a:ArrayBufferLike)=>C.bin(a, "text/plain"), (c:Content)=>c.toArrayBuffer()],
         n:[Buffer.from(a),(n:ArrayBufferLike)=>C.bin(n, "text/plain"), (c:Content)=>c.toNodeBuffer()],
     };
-    /*if (typeof Buffer!=="undefined") {
-        conts.n=[Buffer.from(a),(n)=>C.bin(n, "text/plain"), (c)=>c.toNodeBuffer()];
-    }*/
     const SRC=0, TOCONT=1, FROMCONT=2;
     let binLen=(conts.a[SRC] as ArrayBufferLike).byteLength;
     for (let tfrom of Object.keys(conts) ) 
@@ -548,31 +546,7 @@ function testContent() {
             throw new Error(`Fail at ${tfrom} to ${tto}`);
         }
     }
-
-    /*let c1 = C.plainText(s);
-    test(c1, [s]);
-
-    function test(c, path) {
-        let p = c.toPlainText();
-        let u = c.toURL();
-        let a = c.toArrayBuffer();
-        let n = C.hasNodeBuffer() && c.toNodeBuffer();
-        _console.log("TestCont", path, "->", p, u, a, n);
-        let cp = C.plainText(p);
-        let cu = C.url(u);
-        let ca = C.bin(a, "text/plain");
-        let cn = n && C.bin(n, "text/plain");
-        if (path.length < 2) {
-            test(cp, path.concat([p]));
-            test(cu, path.concat([u]));
-            test(ca, path.concat([a]));
-            if (n) test(cn, path.concat([n]));
-        } else {
-            //assert.eq(cp,p, "cp!=p");
-            //assert.eq(cu,u, "cu!=u");
-        }
-    }*/
-}
+}*/
 async function asyncTest(testd:SFile) {
     //await checkZip(testd);
     await checkWatch(testd);

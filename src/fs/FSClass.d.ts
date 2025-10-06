@@ -1,5 +1,5 @@
 import { default as RootFS, FSTypeName, Stats } from "./RootFS";
-import Content from "./Content";
+import {Content} from "@hoge1e3/content";
 export type AsyncOptions={
     asyncOnMount?: boolean,
     asyncOnAccess?: boolean,// Not Implemented

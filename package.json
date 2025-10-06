@@ -1,7 +1,7 @@
 {
   "type": "module",
   "name": "petit-fs",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "node/fs compatible interface for browser, using localStorage.",
   "main": "src/index.js",
   "types": "src/index.d.ts",

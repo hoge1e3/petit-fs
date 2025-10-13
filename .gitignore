@@ -4,6 +4,10 @@ dist/index.umd.js
 .vscode
 test/test.js.map
 test/test.js
+test/test.d.ts
+test/worker.js.map
+test/worker.js
+test/worker.d.ts
 src/vfsUtil.js
 src/vfsUtil.js.map
 src/vfsUtil.d.ts
@@ -16,7 +20,6 @@ src/index.js
 src/index.js.map
 src/fs/LSFS.d.ts
 src/index.d.ts
-test/test.d.ts
 src/fs/StorageWrapper.d.ts
 src/fs/StorageWrapper.js
 src/fs/StorageWrapper.js.map

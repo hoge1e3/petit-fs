@@ -21,8 +21,8 @@ export default class RootFS {
     hasUncommited():boolean;
     commitPromise():Promise<void>;
     umount(mountedPoint:string):void;
-    mount(mountPoint:string, fs:FileSystem|FSTypeName, options?:LSFSOptions):void;
-    mountAsync(mountPoint:string, fs:FSTypeName, options?:LSFSOptions):Promise<void>;
+    mount(mountPoint:string, fs:FileSystem|FSTypeName, options?:LSFSOptions):FileSystem;
+    mountAsync(mountPoint:string, fs:FSTypeName, options?:LSFSOptions):Promise<FileSystem>;
     resolveFS(path:string):FileSystem;
     addObserver(path:string, handler: ObserverHandler):Observer;
     notifyChanged(path:string, watchEvent:WatchEvent):void;

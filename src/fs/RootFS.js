@@ -50,12 +50,14 @@ var p = {
         }
         assert.is(fs, FS);
         this.fstab().unshift(fs);
+        return fs;
     },
     async mountAsync(mountPoint, fsType, options) {
         const {factory, asyncOptions} = assert(FS.availFSTypes()[fsType], "fstype " + fsType + " is undefined.");
         const fs = await factory(this, mountPoint, options || {});
         assert.is(fs, FS);
         this.fstab().unshift(fs);
+        return fs;
     },
     resolveFS: function (path, options) {
         assert.is(path, P.Absolute);

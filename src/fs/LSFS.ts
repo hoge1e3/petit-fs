@@ -9,6 +9,7 @@ import { LocalStorageWrapper, MemoryStorage} from "./StorageWrapper.js";
 import { IStorage, SyncIDBStorage } from "sync-idb-kvs";
 import { MultiSyncIDBStorage } from "sync-idb-kvs-multi";
 import MutablePromise from "mutable-promise";
+import PathUtil from "./PathUtil.js";
 //const isDir = P.isDir.bind(P);
 const assert:(value:any, message?:string)=>asserts value=ok;
 const up = P.up.bind(P);
@@ -82,6 +83,7 @@ FS.addFSType("ram", function (rootFS:RootFS, mountPoint:string, options:LSFSOpti
     return LSFS.ramDisk(rootFS, mountPoint, options);
 });
 FS.addFSType("idb", async function (rootFS:RootFS, mountPoint:string, options:LSFSOptions={}) {
+    mountPoint=PathUtil.directorify(mountPoint);
     const {dbName="petit-fs", storeName="kvStore"}=options;
     const storage=await MultiSyncIDBStorage.create(dbName, storeName);
     if (!storage.itemExists(mountPoint)) storage.setItem(mountPoint, "{}");  

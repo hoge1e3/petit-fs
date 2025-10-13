@@ -248,17 +248,19 @@ export class FileSystem {
      * @param mountPoint The path in this virtual file system.
      * @param resolver An object used to resolve files in `source`.
      */
-    public mountSync(mountPoint: string, resolver: FSClass|FSTypeName, options:any={}): void {
+    public mountSync(mountPoint: string, resolver: FSClass|FSTypeName, options:any={}): FSClass {
         const rfs=getRootFS();
         mountPoint=PathUtil.directorify(mountPoint);
-        rfs.mount(mountPoint, resolver,options);
+        const fs=rfs.mount(mountPoint, resolver,options);
         this.clearLinkCache();
+        return fs;
     }
-    public async mount(mountPoint: string, resolver: FSTypeName, options:any={}) {
+    public async mount(mountPoint: string, resolver: FSTypeName, options:any={}): Promise<FSClass> {
         const rfs=getRootFS();
         mountPoint=PathUtil.directorify(mountPoint);
-        await rfs.mountAsync(mountPoint, resolver,options);
+        const fs=await rfs.mountAsync(mountPoint, resolver,options);
         this.clearLinkCache();
+        return fs;
     }
 
     /**

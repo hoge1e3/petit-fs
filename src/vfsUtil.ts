@@ -118,10 +118,10 @@ export const process={
         const fs=this.__fs;
         if (!fs) throw new Error("fs is not set");
         if (!fs.existsSync(path)) {
-            throw new Error(`No such file or directory: ${path}`);
+            throw createENOENT(path);
         }
         if (!fs.statSync(path).isDirectory()) {
-            throw new Error(`Not a directory: ${path}`);
+            throw createENOTDIR(path);
         }
         this._cwd=path;
     },
@@ -459,7 +459,9 @@ export class FileSystem {
     public readlinkSync(path: string): string {
         const [fs, fpath]=this.resolveParentLink(path);
         const m=fs.isLink(fpath);
-        if (!m) throw new Error(path+": Not a symbolic link");
+        if (!m) {
+            throw createIOError("EINVAL",`Not a symbolic link: '${path}'`);
+        }
         return m;
     }
     /**
@@ -524,7 +526,7 @@ export class FileSystem {
         // TODO: if path is symbolic link...??
         if (this.isReadonly) throw createIOError("EROFS");
         if (!this.statSync(path).isDirectory()) {
-            throw new Error(`${path} is not a directory`);
+            throw createENOTDIR(path);
         }
         if (options?.recursive) {
             return this.rimrafSync(path);
@@ -577,10 +579,10 @@ export class FileSystem {
         dst=this.toAbsolutePath(dst);
         if (this.isReadonly) throw createIOError("EROFS");
         if (!this.existsSync(src)) {
-            throw new Error(`${src} is not exist`);
+            throw createENOENT(src);
         }
         if (this.existsSync(dst)) {
-            throw new Error(`${dst} already exists`);
+            throw createIOError("EEXIST", `${dst} already exists.`);
         }
         this.cpSync(src, dst, {recursive:true});
         this.rimrafSync(src);
@@ -593,7 +595,7 @@ export class FileSystem {
         _dst=this.toAbsolutePath(_dst);
         if (this.isReadonly) throw createIOError("EROFS");
         if (!this.existsSync(_src)) {
-            throw new Error(`${_src} is not exist`);
+            throw createENOENT(_src);
         }
         const [dfs,dst]=this.resolveLink(_dst);
         const [sfs,src]=this.resolveLink(_src);
@@ -603,7 +605,7 @@ export class FileSystem {
             const slstat=this.lstatSync(_src);
             if (slstat.isSymbolicLink()) return;
 
-            if (!recursive) throw new Error(`${src} is a directory`);
+            if (!recursive) throw createIOError("EISDIR",`${src} is a directory`);
             dfs.mkdir(dst);
             for (const f of this.readdirSync(src, {withFileTypes:true})) {
                 const srcp=pathlib.join(src,f.name);
@@ -616,7 +618,7 @@ export class FileSystem {
             }
         } else {
             if (this.existsSync(dst) && this.statSync(dst).isDirectory()) {
-                throw new Error(`${dst} is a directory`);
+                throw createIOError("EISDIR",`${dst} is a directory`);
             }
             dfs.setContent(dst, sfs.getContent(src));
         }
@@ -630,7 +632,6 @@ export class FileSystem {
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
     public symlinkSync(target: string, linkpath: string): void {
-        if (this.isReadonly) throw createIOError("EROFS");
         if (this.isReadonly) throw createIOError("EROFS");
         const [fs, fpath]=this.resolveLink(linkpath);
         if (!PathUtil.isAbsolutePath(target)) {
@@ -673,7 +674,7 @@ export class FileSystem {
     public readFileSync(path: string, encoding?: BufferEncoding | null): string | Buffer<ArrayBuffer>; // eslint-disable-line no-restricted-syntax
     public readFileSync(path: string, encoding: BufferEncoding | null = null) { // eslint-disable-line no-restricted-syntax
         const [fs, fpath]=this.resolveLink(path);
-        if (fs.lstat(fpath).isDirectory()) throw new Error(`Cannot read from directory: ${fpath}`);
+        if (fs.lstat(fpath).isDirectory()) throw createIOError("EISDIR",`Cannot read from directory: ${fpath}`);
         const c=fs.getContent(fpath);
         if (encoding) {
             return this.toPlainTextOrURL(c);
@@ -698,7 +699,7 @@ export class FileSystem {
     public writeFileSync(path: string, data: string | Buffer<ArrayBuffer>, encoding: string | null = null): void {
         if (this.isReadonly) throw createIOError("EROFS");
         const [fs, fpath]=this.resolveLink(path);
-        if (fs.exists(fpath) && fs.lstat(fpath).isDirectory()) throw new Error(`Cannot write to directory: ${fpath}`);
+        if (fs.exists(fpath) && fs.lstat(fpath).isDirectory()) throw createIOError("EISDIR",`Cannot write to directory: ${fpath}`);
         if (typeof data==="string") {
             fs.setContent(fpath, Content.plainText(data));
         } else {
@@ -717,7 +718,7 @@ export class FileSystem {
     public appendFileSync(path: string, data: string | Buffer<ArrayBuffer>, encoding: string | null = null): void {
         if (this.isReadonly) throw createIOError("EROFS");
         const [fs, fpath]=this.resolveLink(path);
-        if (fs.exists(fpath) && fs.lstat(fpath).isDirectory()) throw new Error(`Cannot write to directory: ${fpath}`);
+        if (fs.exists(fpath) && fs.lstat(fpath).isDirectory()) throw createIOError("EISDIR",`Cannot write to directory: ${fpath}`);
         if (typeof data==="string") {
             fs.appendContent(fpath, Content.plainText(data));
         } else {
@@ -797,7 +798,7 @@ export class FileSystem {
         const [fs, fpath]=this.resolveLink(path);
         if (type==="W_OK") {
             if (fs.isReadOnly(fpath)) {
-                throw new Error(`${path} is read only.`);
+                throw createIOError("EROFS",`${path} is read only.`);
             }
         }
     }
@@ -847,7 +848,7 @@ export interface FileSystemResolverHost {
     readFile(path: string): string | undefined;
     getWorkspaceRoot(): string;
 }
-
+/*
 export function createResolver(host: FileSystemResolverHost): FileSystemResolver {
     return {
         readdirSync(path: string): string[] {
@@ -862,14 +863,14 @@ export function createResolver(host: FileSystemResolverHost): FileSystemResolver
                 return { mode: S_IFREG | 0o666, size: host.getFileSize(path) };
             }
             else {
-                throw new Error("ENOENT: path does not exist");
+                throw createENOENT(path);
             }
         },
         readFileSync(path: string): FileDataBuffer {
             return { encoding: "utf8", data: host.readFile(path)! };
         },
     };
-}
+}*/
 
 export class Stats {
     public dev: number;
@@ -1201,4 +1202,17 @@ async ${s.substring(0,s.length-4)}(...args:Parameters<FileSystem["${s}"]>) {
     return this.fs.${s}(...args);
 }`).join("\n")
 */
+}
+export function createENOENT(
+  path: string,
+  syscall: string = "open"
+) {
+    return createIOError("ENOENT",`no such file or directory, ${syscall} '${path}'`);
+}
+
+export function createENOTDIR(
+  path: string,
+  syscall: string = "scandir"
+) {
+    return createIOError("ENOTDIR",`not a directory, ${syscall} '${path}'`);
 }

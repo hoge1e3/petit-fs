@@ -2,6 +2,7 @@ import Util from "./Util.js";
 import assert from "./assert.js";
 import P from "./PathUtil.js";
 import M from "./MIMETypes.js";
+import {createENOENT, createIOError} from "./../errors.js";
 const extend=Util.extend;
 var FS = function (rootFS, mountPoint) {
     this.rootFS = rootFS;
@@ -163,7 +164,7 @@ FS.delegateMethods = function (prototype, methods) {
 };*/
 /*FS.delegateMethods*/Object.assign(FS.prototype, {
     assertWriteable: function (path) {
-        if (this.isReadOnly(path)) this.err(path, "read only.");
+        if (this.isReadOnly(path)) throw createIOError("EROFS", path);
     },
     getContentType: function (path, options) {
         var e = (P.ext(path) + "").toLowerCase();
@@ -186,7 +187,7 @@ FS.delegateMethods = function (prototype, methods) {
     },
     assertExist: function (path, options) {
         if (!this.exists(path, options)) {
-            this.err(path, "No such file or directory");
+            throw createENOENT(path);
         }
     },
     isDir: function (path, options) {

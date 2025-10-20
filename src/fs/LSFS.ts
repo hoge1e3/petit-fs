@@ -10,6 +10,7 @@ import { IStorage, SyncIDBStorage } from "sync-idb-kvs";
 import { MultiSyncIDBStorage } from "sync-idb-kvs-multi";
 import MutablePromise from "mutable-promise";
 import PathUtil from "./PathUtil.js";
+import { createEISDIR, createENOENT, createIOError } from "../errors.js";
 //const isDir = P.isDir.bind(P);
 const assert:(value:any, message?:string)=>asserts value=ok;
 const up = P.up.bind(P);
@@ -430,7 +431,8 @@ export class LSFS extends FS {
             return; 
         }
         if (!this.cachedStorage.hasDirInfoItem(ppath)) {
-            throw new Error(`File(item) ${ppath} not exists.`);
+            // TODO throw retriable Error? or hasDirInfoItem itself throw it?
+            throw createIOError("ENOENT",`File(item) ${ppath} not exists.`);
         }
         const pdinfo = this.cachedStorage.getDirInfoItem(ppath);
         this.cachedStorage.setDirInfoItem(dpath, dinfo);
@@ -484,7 +486,7 @@ export class LSFS extends FS {
     public getContent(path:string) {
         assertAbsoluteRegular(path);
         const stat=this.lstat(path);
-        if (stat.isDirectory()) throw new Error(`${path} is a directory.`);
+        if (stat.isDirectory()) throw createEISDIR(path);
         const regPath=path;
         return this.cachedStorage.getContentItem(regPath);
         /*if (Content.looksLikeDataURL(cs)) {
@@ -499,8 +501,8 @@ export class LSFS extends FS {
         this.assertWriteable(path);
         if (this.exists(path)) {
             const stat=this.lstat(path);
-            if (stat.isDirectory()) throw new Error(`${path} is a directory.`); 
-            if (stat.isSymbolicLink()) throw new Error(`${path}: Cannot write content to symlink itself.`);   
+            if (stat.isDirectory()) throw createEISDIR(path); 
+            if (stat.isSymbolicLink()) throw createIOError("EINVAL",`${path}: Cannot write content to symlink itself.`);   
         }
         const regPath=path;
         /*let t:null|string = null;
@@ -606,7 +608,7 @@ export class LSFS extends FS {
         this.assertWriteable(path);
         const parent = P.up(path);
         if (parent == null || !this.inMyFS(parent)) {
-            throw new Error(path + ": cannot remove. It is root of this FS.");
+            throw createIOError("EROFS" ,path + ": Cannot remove. It is root of this FS.");
         }
         this.assertExist(path);
         const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
@@ -615,7 +617,7 @@ export class LSFS extends FS {
         if (lstat.isDirectory() && !issym){
             const lis = this.opendir(fixedPath);
             if (lis.length > 0) {
-                throw new Error(`${fixedPath}: Directory not empty`);
+                throw createIOError("ENOTEMPTY",`${fixedPath}: Directory not empty`);
             }
             this.cachedStorage.removeDirInfoItem(fixedPath);
         } else if (!issym) this.cachedStorage.removeContentItem(fixedPath);
@@ -635,12 +637,12 @@ export class LSFS extends FS {
         assertAbsolute(path);
         assertAbsolute(to);
         this.assertWriteable(path);
-        if (this.exists(path)) throw new Error(`${path}: file exists`);
+        if (this.exists(path)) throw createIOError("EEXIST", `${path}: file exists`);
         if (P.isDir(path) && !P.isDir(to)) {
-            throw new Error(`${path} can not link to file ${to}`);
+            throw createIOError("EINVAL",`${path} can not link to file ${to}`);
         }
         if (!P.isDir(path) && P.isDir(to)) {
-            throw new Error(`${path} can not link to directory ${to}`);
+            throw createIOError("EINVAL",`${path} can not link to directory ${to}`);
         }
         const m = {
             link: to,

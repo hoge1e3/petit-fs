@@ -19,6 +19,9 @@ export const path={
     get posix() {
         return path; // PathUtil's SEP is fixed with '/'.
     },
+    normalize(path:string) {
+        return PathUtil.truncSEP(path);
+    },
     isAbsolute(path:string) {
         return PathUtil.isAbsolutePath(path);
     },

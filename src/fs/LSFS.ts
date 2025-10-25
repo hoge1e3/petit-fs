@@ -2,7 +2,7 @@
 //        function(FS,P,extend,assert,Util,Content) {
 import FS, { Dirent } from "./FSClass.js";
 import P from "./PathUtil.js";
-import {Content} from "@hoge1e3/Content";
+import {Content} from "@hoge1e3/content";
 import {ok} from "@hoge1e3/assert";
 import RootFS, { Stats, WatchEvent } from "./RootFS.js";
 import { LocalStorageWrapper, MemoryStorage} from "./StorageWrapper.js";

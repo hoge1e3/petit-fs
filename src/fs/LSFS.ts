@@ -80,6 +80,7 @@ export type LSFSOptions={
 //export type LSFSConstructorOptions={mountPoint?: string}&LSFSOptions;
 export type DirInfo={[key:string]:MetaInfo};
 FS.addFSType("localStorage", function (rootFS:RootFS, mountPoint:string, options:LSFSOptions) {
+    if (!localStorage[mountPoint]) localStorage[mountPoint]="{}";
     return new LSFS(rootFS, mountPoint, new LocalStorageWrapper(localStorage), options);
 });
 FS.addFSType("ram", function (rootFS:RootFS, mountPoint:string, options:LSFSOptions) {
@@ -376,7 +377,7 @@ export class LSFS extends FS {
     constructor(rootFS:RootFS, mountPoint: string, public storage:IStorage, {readOnly}:LSFSOptions={}) {
         assert(storage, " new LSFS fail: no storage");
         super(rootFS, mountPoint);
-        if (!storage.itemExists(mountPoint)) storage.setItem(mountPoint,"{}");
+        //if (!storage.itemExists(mountPoint)) storage.setItem(mountPoint,"{}");
         this.readOnly=!!readOnly;
         this.cachedStorage=new CachedStorage(storage, mountPoint);
         if (storage instanceof MultiSyncIDBStorage) {

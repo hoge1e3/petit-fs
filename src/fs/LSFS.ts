@@ -73,7 +73,9 @@ export type MetaInfo={
 export type LSFSOptions={
     readOnly?:boolean,
     // For IDB
-    dbName?: string, storeName?: string,
+    dbName?: string, 
+    lazy?:0|1|2,
+    //storeName?: string,
 };
 //export type LSFSConstructorOptions={mountPoint?: string}&LSFSOptions;
 export type DirInfo={[key:string]:MetaInfo};
@@ -85,9 +87,12 @@ FS.addFSType("ram", function (rootFS:RootFS, mountPoint:string, options:LSFSOpti
 });
 FS.addFSType("idb", async function (rootFS:RootFS, mountPoint:string, options:LSFSOptions={}) {
     mountPoint=PathUtil.directorify(mountPoint);
-    const {dbName="petit-fs", storeName="kvStore"}=options;
-    const storage=await MultiSyncIDBStorage.create(dbName, storeName);
-    if (!storage.itemExists(mountPoint)) storage.setItem(mountPoint, "{}");  
+    const {dbName="petit-fs", lazy}=options;
+    const storage=await MultiSyncIDBStorage.create(
+      dbName, 
+      {[mountPoint]:"{}"},
+      {lazy});
+    //if (!storage.itemExists(mountPoint)) storage.setItem(mountPoint, "{}");  
     return new LSFS(rootFS, mountPoint, storage, options);
 },{asyncOnMount:true});
 function assertAbsolute(path:string) {

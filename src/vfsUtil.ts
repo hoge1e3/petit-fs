@@ -266,6 +266,21 @@ export class FileSystem {
         this.clearLinkCache();
         return fs;
     }
+    public async unmount(mountPoint:string) {
+        const rfs=getRootFS();
+        mountPoint=PathUtil.directorify(mountPoint);
+        const fs=rfs.unmount(mountPoint);
+        this.clearLinkCache();
+        return fs;
+    }
+    public fstab() {
+        const rfs=getRootFS();
+        return rfs.fstab();
+    }
+    public commitPromise(){
+        const rfs=getRootFS();
+        return rfs.commitPromise();
+    }
 
     /**
      * Recursively remove all files and directories underneath the provided path.

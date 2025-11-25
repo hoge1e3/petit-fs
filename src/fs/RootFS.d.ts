@@ -20,7 +20,7 @@ export default class RootFS {
     fstab(): FileSystem[];
     hasUncommited():boolean;
     commitPromise():Promise<void>;
-    umount(mountedPoint:string):void;
+    unmount(mountedPoint:string):void;
     mount(mountPoint:string, fs:FileSystem|FSTypeName, options?:LSFSOptions):FileSystem;
     mountAsync(mountPoint:string, fs:FSTypeName, options?:LSFSOptions):Promise<FileSystem>;
     resolveFS(path:string):FileSystem;

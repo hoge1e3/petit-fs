@@ -409,7 +409,7 @@ export class FileSystem {
     public mkdirpSync(path: string): void {
         path=this.toAbsolutePath(path);
         const p=PathUtil.up(path);
-        if (!p) throw new Error("Invalid path state");
+        if (!p) throw new Error("mkdirpSync: Invalid path state: "+path);
         if (!this.existsSync(p)) {
             this.mkdirpSync(p);
         }
@@ -527,7 +527,14 @@ export class FileSystem {
         path=PathUtil.directorify(path);
         const [fs, fpath]=this.resolveLink(path);
         if (recursive) {
-            const parent=PathUtil.up(fpath)!;
+            if (this.existsSync(fpath)) {
+                if (!this.statSync(fpath).isDirectory()) {
+                    throw new Error(`${fpath} already exists as file`);
+                }
+                return;
+            }
+            const parent=PathUtil.up(fpath);
+            if (!parent) throw new Error("mkdirSync: Invalid path state: "+fpath);
             if (!this.existsSync(parent)) this.mkdirSync(parent,{recursive:true});           
         }
         return fs.mkdir(fpath);

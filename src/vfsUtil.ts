@@ -305,16 +305,6 @@ export class FileSystem {
             throw e;
         }
     }
-    /*private resolveFS(path: string):[FSClass, string] {
-        path=this.toAbsolutePath(path);
-        const rfs=this.getRootFS();
-        const mp=this.isMountPoint(path);
-        if (mp) {
-            // The only chance that path changes /tmp -> /tmp/ (If /tmp/ is mounted as RAM disk).
-            return [mp, mp.mountPoint||"/"]; 
-        }
-        return [ rfs.resolveFS(path), path];
-    }*/
     public resolveLink(path: string):[FSClass,string] {
         const cached=this.linkCache.get(path);
         if (cached) return cached;
@@ -338,14 +328,16 @@ export class FileSystem {
         */
         const mp=this.isMountPoint(path);
         if (mp) {
-            // Mount point is never link.
+            // Mount point is never a link.
             return [mp, mp.mountPoint||"/"]; 
         }
         const parent=PathUtil.up(path);
         if (!parent) {
-            const rfs=this.getRootFS();
+            // if path=="/", it should be mount point. Never come here.
+            throw new Error("Invalid path state: "+path);
+            /*const rfs=this.getRootFS();
             // "/" is never link.
-            return [rfs.resolveFS(path),path];
+            return [rfs.resolveFS(path),path];*/
         }
         // path=/a/b/  parent=/a/
         const [rpfs, rppath]=this.resolveLink(parent);
@@ -362,34 +354,11 @@ export class FileSystem {
             return this.resolveLink(to);  //  to=/c/d/
         }
         return [rpfs, rpath];  // [pfs=(fs of /a/),  rpath=/a/b/]
-
-        /*while(true) {
-            let p,fs;
-            // path=/ram/files/sub/test2.txt
-            for (p=path; p; p=PathUtil.up(p)) {
-                [fs, p]=this.resolveFS(p);
-                // p=/ram/files/ l=/testdir/
-                const ex=fs.exists(p);//false if path is existent only by follwing symlink
-                let to=ex && fs.isLink(p);
-                if (to) {
-                    // to=/testdir/
-                    if (!PathUtil.isAbsolutePath(to)) {
-                        to=PathUtil.rel(PathUtil.up(p)!,to);
-                    }
-                    // p=/ram/files/  rel=sub/test2.txt
-                    const rel=PathUtil.relPath(path, p);
-                    // path=/testdir/sub/test2.txt
-                    path=PathUtil.rel(to, rel);
-                    break;
-                }
-            }
-            if (!p) return this.resolveFS(path);
-        }*/
     }
     /* Used when refers to link itself, (on unlink etc) */
     public resolveParentLink(path: string):[FSClass,string] {
         /*
-        if path is mount point, it should return [FS_at_mount point, path itself]
+        if path is mount_point, it should return [FS_at_mount_point, path itself]
         if path is symbolic link that points mount point, it should return [FS_of_up(path), path]
         */
         const mfs=this.isMountPoint(path);
@@ -432,7 +401,7 @@ export class FileSystem {
     }
     isMountPoint(path:string):FSClass|undefined{
         path=PathUtil.directorify(path);
-        return this.getRootFS().fstab().find((f)=>f.mountPoint===path);
+        return this.getRootFS().fstab().find((f)=>(f.mountPoint||"/")===path);
     }
     childrenOfMountPoint(path:string):FSClass[] {
         // this=/mnt/  ,  returns  ["/mnt/fd", "/mnt/cdrom"] ... etc. just a example.

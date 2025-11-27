@@ -24,7 +24,7 @@ export default abstract class FileSystem {
     abstract hasUncommited():boolean;
     abstract commitPromise():Promise<void>;
     abstract isReadOnly(path:string):boolean;
-    resolveFS(path:string):FileSystem;
+    //resolveFS(path:string):FileSystem;
     mountPoint: string;
     //mounted(rootFS:RootFS, mountPoint:string):void;
     inMYFS(path:string):boolean;
@@ -46,7 +46,7 @@ export default abstract class FileSystem {
     abstract opendir(path:string):string[];
     abstract opendirent(path:string):Dirent[];
     abstract direntOfMountPoint():Dirent;
-    copyFile(path:string, dst:string):void;
+    //copyFile(path:string, dst:string):void;
     //mv(path:string, dst:string):void;
     abstract rm(path:string):void;
     link(path:string, to:string):void;

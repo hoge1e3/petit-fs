@@ -687,7 +687,7 @@ export class LSFS extends FS {
                 const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
                 this._touch(pinfo, parent, fixedName, false);
             } else {
-                this.getRootFS().resolveFS(parent).touch(parent);
+                //this.getRootFS().resolveFS(parent).touch(parent);
             }
         }
      }

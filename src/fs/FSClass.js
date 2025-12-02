@@ -33,10 +33,10 @@ extend(FS.prototype, {
     supportsSync: function () {
         return true;
     },
-    resolveFS: function (path, options) {
+    /*resolveFS: function (path, options) {
         assert(this.getRootFS() !== this);
         return this.getRootFS().resolveFS(path);
-    },
+    },*/
     hasUncommited() {
         return false;
     },
@@ -104,7 +104,7 @@ extend(FS.prototype, {
         //ret: [String] || Stream<string> // https://nodejs.org/api/stream.html#stream_class_stream_readable
         stub("opendir");
     },
-    copyFile: function (path, dst, options) {
+    /*copyFile: function (path, dst, options) {
         assert.is(arguments, [P.Absolute, P.Absolute]);
         this.assertExist(path);
         options = options || {};
@@ -121,7 +121,7 @@ extend(FS.prototype, {
         } else {
             throw new Error("only file to file supports");
         }
-    },
+    },*/
     /*mv: function (path, to, options) {
         this.cp(path, to, options);
         return this.rm(path, { r: true });
@@ -193,7 +193,7 @@ FS.delegateMethods = function (prototype, methods) {
     isDir: function (path, options) {
         return P.isDir(path);
     },
-    find: function (path, options) {
+    /*find: function (path, options) {
         assert.is(arguments, [P.Absolute]);
         var ls = this.opendir(path, options);
         var t = this;
@@ -210,8 +210,8 @@ FS.delegateMethods = function (prototype, methods) {
             }
         });
         return res;
-    },
-    resolveLink: function (path) {
+    },*/
+    /*resolveLink: function (path) {
         assert.is(path, P.Absolute);
         // returns non-link path
         // ln -s /a/b/ /c/d/
@@ -236,7 +236,7 @@ FS.delegateMethods = function (prototype, methods) {
             if (this.exists(p)) return path;
         }
         return path;
-    },
+    },*/
     isLink: function (path) {
         return null;
     },

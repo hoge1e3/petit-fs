@@ -1,5 +1,6 @@
 import assert from "./assert.js";
 import FS from "./FSClass.js";
+import PathUtil from "./PathUtil.js";
 import P from "./PathUtil.js";
 var RootFS = function (/*defaultFS*/) {
     /*assert.is(defaultFS, FS);
@@ -61,6 +62,14 @@ var p = {
     },
     resolveFS: function (path, options) {
         assert.is(path, P.Absolute);
+        const f=this.fstab();
+        for (let p=path; p; p=PathUtil.up(p)) {
+            const found=f.find(e=>
+                PathUtil.directorify(e.mountPoint)===PathUtil.directorify(p));
+            if (found) return assert.is(found,FS);
+        }
+        throw new Error("Cannot resolve "+path);
+        /*
         var res;
         this.fstab().forEach(function (fs) {
             if (res) return;
@@ -69,7 +78,7 @@ var p = {
             }
         });
         if (!res) this.err(path, "Cannot resolve");
-        return assert.is(res, FS);
+        return assert.is(res, FS);*/
     },
     addObserver: function (_1, _2, _3) {
         this.observers = this.observers || [];

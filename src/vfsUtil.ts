@@ -1,9 +1,3 @@
-//import * as collections from "./collectionsImpl";
-//import * as documents from "./documentsUtil";
-//import * as Harness from "./_namespaces/Harness.js";
-//import * as ts from "./_namespaces/ts.js";
-//import * as vpath from "./vpathUtil";
-//import * as core from "./core";
 import {Buffer} from "buffer";
 import { getRootFS } from "./fs/index.js";
 import { Content } from "@hoge1e3/content";
@@ -11,13 +5,19 @@ import FSClass, { Dirent } from "./fs/FSClass.js";
 import PathUtil from "./fs/PathUtil.js";
 import RootFS, { FSTypeName, ObserverEvent, ObserverHandler } from "./fs/RootFS.js";
 import { createENOENT, createENOTDIR, createIOError } from "./errors.js";
-
+import {path) from "./path";
+/*import * as path from "path-module";
+export * as path from "path-module";*/
+/*
 export const path={
     get default() {
         return path;
     },
     get posix() {
         return path; // PathUtil's SEP is fixed with '/'.
+    },
+    get win32(){
+        return path;// TODO
     },
     normalize(path:string) {
         return PathUtil.truncSEP(path);
@@ -70,7 +70,7 @@ export const path={
     extname(path:string) {
         return PathUtil.ext(path);
     }
-};
+};*/
 const pathlib=path;
 export const os={
     platform:()=>"browser",
@@ -266,6 +266,21 @@ export class FileSystem {
         this.clearLinkCache();
         return fs;
     }
+    public async unmount(mountPoint:string) {
+        const rfs=getRootFS();
+        mountPoint=PathUtil.directorify(mountPoint);
+        const fs=rfs.unmount(mountPoint);
+        this.clearLinkCache();
+        return fs;
+    }
+    public fstab() {
+        const rfs=getRootFS();
+        return rfs.fstab();
+    }
+    public commitPromise(){
+        const rfs=getRootFS();
+        return rfs.commitPromise();
+    }
 
     /**
      * Recursively remove all files and directories underneath the provided path.
@@ -290,16 +305,6 @@ export class FileSystem {
             throw e;
         }
     }
-    /*private resolveFS(path: string):[FSClass, string] {
-        path=this.toAbsolutePath(path);
-        const rfs=this.getRootFS();
-        const mp=this.isMountPoint(path);
-        if (mp) {
-            // The only chance that path changes /tmp -> /tmp/ (If /tmp/ is mounted as RAM disk).
-            return [mp, mp.mountPoint||"/"]; 
-        }
-        return [ rfs.resolveFS(path), path];
-    }*/
     public resolveLink(path: string):[FSClass,string] {
         const cached=this.linkCache.get(path);
         if (cached) return cached;
@@ -323,14 +328,16 @@ export class FileSystem {
         */
         const mp=this.isMountPoint(path);
         if (mp) {
-            // Mount point is never link.
+            // Mount point is never a link.
             return [mp, mp.mountPoint||"/"]; 
         }
         const parent=PathUtil.up(path);
         if (!parent) {
-            const rfs=this.getRootFS();
+            // if path=="/", it should be mount point. Never come here.
+            throw new Error("Invalid path state: "+path);
+            /*const rfs=this.getRootFS();
             // "/" is never link.
-            return [rfs.resolveFS(path),path];
+            return [rfs.resolveFS(path),path];*/
         }
         // path=/a/b/  parent=/a/
         const [rpfs, rppath]=this.resolveLink(parent);
@@ -347,34 +354,11 @@ export class FileSystem {
             return this.resolveLink(to);  //  to=/c/d/
         }
         return [rpfs, rpath];  // [pfs=(fs of /a/),  rpath=/a/b/]
-
-        /*while(true) {
-            let p,fs;
-            // path=/ram/files/sub/test2.txt
-            for (p=path; p; p=PathUtil.up(p)) {
-                [fs, p]=this.resolveFS(p);
-                // p=/ram/files/ l=/testdir/
-                const ex=fs.exists(p);//false if path is existent only by follwing symlink
-                let to=ex && fs.isLink(p);
-                if (to) {
-                    // to=/testdir/
-                    if (!PathUtil.isAbsolutePath(to)) {
-                        to=PathUtil.rel(PathUtil.up(p)!,to);
-                    }
-                    // p=/ram/files/  rel=sub/test2.txt
-                    const rel=PathUtil.relPath(path, p);
-                    // path=/testdir/sub/test2.txt
-                    path=PathUtil.rel(to, rel);
-                    break;
-                }
-            }
-            if (!p) return this.resolveFS(path);
-        }*/
     }
     /* Used when refers to link itself, (on unlink etc) */
     public resolveParentLink(path: string):[FSClass,string] {
         /*
-        if path is mount point, it should return [FS_at_mount point, path itself]
+        if path is mount_point, it should return [FS_at_mount_point, path itself]
         if path is symbolic link that points mount point, it should return [FS_of_up(path), path]
         */
         const mfs=this.isMountPoint(path);
@@ -394,7 +378,7 @@ export class FileSystem {
     public mkdirpSync(path: string): void {
         path=this.toAbsolutePath(path);
         const p=PathUtil.up(path);
-        if (!p) throw new Error("Invalid path state");
+        if (!p) throw new Error("mkdirpSync: Invalid path state: "+path);
         if (!this.existsSync(p)) {
             this.mkdirpSync(p);
         }
@@ -417,7 +401,7 @@ export class FileSystem {
     }
     isMountPoint(path:string):FSClass|undefined{
         path=PathUtil.directorify(path);
-        return this.getRootFS().fstab().find((f)=>f.mountPoint===path);
+        return this.getRootFS().fstab().find((f)=>(f.mountPoint||"/")===path);
     }
     childrenOfMountPoint(path:string):FSClass[] {
         // this=/mnt/  ,  returns  ["/mnt/fd", "/mnt/cdrom"] ... etc. just a example.
@@ -512,7 +496,14 @@ export class FileSystem {
         path=PathUtil.directorify(path);
         const [fs, fpath]=this.resolveLink(path);
         if (recursive) {
-            const parent=PathUtil.up(fpath)!;
+            if (this.existsSync(fpath)) {
+                if (!this.statSync(fpath).isDirectory()) {
+                    throw new Error(`${fpath} already exists as file`);
+                }
+                return;
+            }
+            const parent=PathUtil.up(fpath);
+            if (!parent) throw new Error("mkdirSync: Invalid path state: "+fpath);
             if (!this.existsSync(parent)) this.mkdirSync(parent,{recursive:true});           
         }
         return fs.mkdir(fpath);
@@ -806,6 +797,140 @@ export class FileSystem {
             }
         }
     }
+    //--- callbacks
+    appendFile(...a:any[]){
+        const callback=a.pop();
+        return this.promises.appendFile(
+            ...(a as Parameters<FileSystem["promises"]["appendFile"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    access(...a:any[]){
+        const callback=a.pop();
+        return this.promises.access(
+            ...(a as Parameters<FileSystem["promises"]["access"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    close(...a:any[]){
+        const callback=a.pop();
+        return this.promises.close(
+            ...(a as Parameters<FileSystem["promises"]["close"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    cp(...a:any[]){
+        const callback=a.pop();
+        return this.promises.cp(
+            ...(a as Parameters<FileSystem["promises"]["cp"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    exists(...a:any[]){
+        const callback=a.pop();
+        return this.promises.exists(
+            ...(a as Parameters<FileSystem["promises"]["exists"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    link(...a:any[]){
+        const callback=a.pop();
+        return this.promises.link(
+            ...(a as Parameters<FileSystem["promises"]["link"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    lstat(...a:any[]){
+        const callback=a.pop();
+        return this.promises.lstat(
+            ...(a as Parameters<FileSystem["promises"]["lstat"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    mkdir(...a:any[]){
+        const callback=a.pop();
+        return this.promises.mkdir(
+            ...(a as Parameters<FileSystem["promises"]["mkdir"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    open(...a:any[]){
+        const callback=a.pop();
+        return this.promises.open(
+            ...(a as Parameters<FileSystem["promises"]["open"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    readdir(...a:any[]){
+        const callback=a.pop();
+        return this.promises.readdir(
+            ...(a as Parameters<FileSystem["promises"]["readdir"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    readFile(...a:any[]){
+        const callback=a.pop();
+        return this.promises.readFile(
+            ...(a as Parameters<FileSystem["promises"]["readFile"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    readlink(...a:any[]){
+        const callback=a.pop();
+        return this.promises.readlink(
+            ...(a as Parameters<FileSystem["promises"]["readlink"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    realpath(...a:any[]){
+        const callback=a.pop();
+        return this.promises.realpath(
+            ...(a as Parameters<FileSystem["promises"]["realpath"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    rename(...a:any[]){
+        const callback=a.pop();
+        return this.promises.rename(
+            ...(a as Parameters<FileSystem["promises"]["rename"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    rm(...a:any[]){
+        const callback=a.pop();
+        return this.promises.rm(
+            ...(a as Parameters<FileSystem["promises"]["rm"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    rmdir(...a:any[]){
+        const callback=a.pop();
+        return this.promises.rmdir(
+            ...(a as Parameters<FileSystem["promises"]["rmdir"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    stat(...a:any[]){
+        const callback=a.pop();
+        return this.promises.stat(
+            ...(a as Parameters<FileSystem["promises"]["stat"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    symlink(...a:any[]){
+        const callback=a.pop();
+        return this.promises.symlink(
+            ...(a as Parameters<FileSystem["promises"]["symlink"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    unlink(...a:any[]){
+        const callback=a.pop();
+        return this.promises.unlink(
+            ...(a as Parameters<FileSystem["promises"]["unlink"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    utimes(...a:any[]){
+        const callback=a.pop();
+        return this.promises.utimes(
+            ...(a as Parameters<FileSystem["promises"]["utimes"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    writeFile(...a:any[]){
+        const callback=a.pop();
+        return this.promises.writeFile(
+            ...(a as Parameters<FileSystem["promises"]["writeFile"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+    write(...a:any[]){
+        const callback=a.pop();
+        return this.promises.write(
+            ...(a as Parameters<FileSystem["promises"]["write"]>)).then(
+            (r)=>callback(null,r),(e)=>callback(e));
+    }
+
 }
 
 export interface FileSystemOptions {
@@ -1155,7 +1280,14 @@ return Object.keys(fs)
 map(s=>s.substring(0,s.length-4)).
 filter(s=>!cmt.includes(s)).
 map(s=>`
+${s}(...a:any[]){
+    const callback=a.pop();
+    return this.promises.${s}(
+        ...(a as Parameters<FileSystem["promises"]["${s}"]>)).then(
+        (r)=>callback(null,r),(e)=>callback(e));
+}`).join("");*/
+/*
 async ${s}(...args:Parameters<FileSystem["${s}Sync"]>) {
     return await retry(()=>this.fs.${s}Sync(...args));
 }`).join("")
-;*/
+*/

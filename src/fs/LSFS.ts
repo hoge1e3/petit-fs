@@ -1,21 +1,45 @@
 //define(["FSClass","PathUtil","extend","assert","Util","Content"],
 //        function(FS,P,extend,assert,Util,Content) {
-import FS, { Dirent } from "./FSClass.js";
 import P from "./PathUtil.js";
 import {Content} from "@hoge1e3/content";
 import {ok} from "@hoge1e3/assert";
-import RootFS, { Stats, WatchEvent } from "./RootFS.js";
+import RootFS from "./RootFS.js";
 import { LocalStorageWrapper, MemoryStorage} from "./StorageWrapper.js";
 import { IStorage, SyncIDBStorage } from "sync-idb-kvs";
 import { MultiSyncIDBStorage } from "sync-idb-kvs-multi";
 import MutablePromise from "mutable-promise";
 import PathUtil from "./PathUtil.js";
-import { createEISDIR, createENOENT, createIOError } from "../errors.js";
+import { createEEXIST, createEISDIR, createENOENT, createIOError } from "../errors.js";
+import { Absolute, BaseName, Canonical } from "../types.js";
+import { basename, directorify, filify, toCanonicalPath, up } from "../pathUtil2.js";
+import { Dirent, IFileSystem, IRootFS, ObserverEvent, Stats } from "./types.js";
 //const isDir = P.isDir.bind(P);
 const assert:(value:any, message?:string)=>asserts value=ok;
-const up = P.up.bind(P);
+//const up = P.up.bind(P);
 //const endsWith = P.endsWith.bind(P);
-const P_name = P.name.bind(P);
+const P_name = (p:string)=>P.name(p) as SlasyBase;
+function P_rel(p:SlasyDir, c:SlasyBase):Slasy;
+function P_rel(p:string, c:string) {
+    return P.rel(p,c);
+}
+function P_up(p:Slasy|Canonical):SlasyDir {
+    return P.up(p) as SlasyDir;
+}
+function P_directorify(p:Canonical|Slasy):SlasyDir;
+function P_directorify(p:string):string {
+    return P.directorify(p) ;
+}
+// SlasyReg!=Canonical because "/" is Canonical but NOT SlasyReg
+function P_truncSep(p:SlasyBase):BaseName;
+function P_truncSep(p:Slasy):Canonical;
+function P_truncSep(p:string):string;
+function P_truncSep(p:string):string {
+    if (p!=="/" && p.endsWith(SEP)) return p.substring(0,p.length-1);
+    return p;
+}
+function P_isDir(p:Slasy|Canonical):p is SlasyDir {
+    return p.endsWith(SEP);
+}
 const SEP = P.SEP;
 type StatsEx= Stats & {linkPath:string|undefined};
 function now() {
@@ -77,40 +101,54 @@ export type LSFSOptions={
     lazy?:0|1|2,
     //storeName?: string,
 };
+const symsl=Symbol("Slasy");//  SHOULD contain trailing slash for directory
+const symsl_dir=Symbol("Slasy_dir");
+const symsl_regular=Symbol("Slasy_regular");
+const symsl_base=Symbol("Slasy_base");
+export type Slasy=SlasyDir|SlasyReg;
+// SlasyDir and SlasyReg are always Absolute
+export type SlasyDir=string&{[symsl_dir]:1};// /path/to/dir/    
+export type SlasyReg=string&{[symsl_regular]:1}; // /path/to/file  
+export type SlasyBase=string&{[symsl_base]:1}; //  file  dir/
 //export type LSFSConstructorOptions={mountPoint?: string}&LSFSOptions;
-export type DirInfo={[key:string]:MetaInfo};
-FS.addFSType("localStorage", function (rootFS:RootFS, mountPoint:string, options:LSFSOptions) {
-    if (!localStorage[mountPoint]) localStorage[mountPoint]="{}";
+export type DirInfo={[key:SlasyBase]:MetaInfo};
+RootFS.addFSType("localStorage", function (rootFS:IRootFS, mountPoint:Canonical, options:LSFSOptions) {
+    if (!localStorage[mountPoint]) localStorage[P_directorify(mountPoint)]="{}";
     return new LSFS(rootFS, mountPoint, new LocalStorageWrapper(localStorage), options);
 });
-FS.addFSType("ram", function (rootFS:RootFS, mountPoint:string, options:LSFSOptions) {
+RootFS.addFSType("ram", function (rootFS:IRootFS, mountPoint:Canonical, options:LSFSOptions) {
     return LSFS.ramDisk(rootFS, mountPoint, options);
 });
-FS.addFSType("idb", async function (rootFS:RootFS, mountPoint:string, options:LSFSOptions={}) {
-    mountPoint=PathUtil.directorify(mountPoint);
+RootFS.addFSType("idb", async function (rootFS:IRootFS, mountPoint:Canonical, options:LSFSOptions={}) {
     const {dbName="petit-fs", lazy}=options;
     const storage=await MultiSyncIDBStorage.create(
       dbName, 
-      {[mountPoint]:"{}"},
+      {[P_directorify(mountPoint)]:"{}"},
       {lazy});
     //if (!storage.itemExists(mountPoint)) storage.setItem(mountPoint, "{}");  
     return new LSFS(rootFS, mountPoint, storage, options);
 },{asyncOnMount:true});
-function assertAbsolute(path:string) {
+function assertAbsolute(path:string):asserts path is Absolute {
     assert(P.isAbsolutePath(path), path + " is not absolute path");
 }
-function assertAbsoluteDir(path:string) {
+function assertAbsoluteDir(path:string): asserts path is SlasyDir {
     assertAbsolute(path);
     assert(P.isDir(path), path + " is not directory path");
 }
-function assertAbsoluteRegular(path:string) {
+function assertAbsoluteRegular(path:string): asserts path is SlasyReg {
     assertAbsolute(path);
     assert(!P.isDir(path), path + " is directory path");
 }
-function fixSep(dinfo:DirInfo, name:string) {
-    if (P.isDir(name)) return name;
-    if (dinfo[name]) return name;
-    const dname=P.directorify(name);
+function assertSlasyDir(path:Slasy): asserts path is SlasyDir {
+    assert(P.isDir(path), path + " is directory path");
+}
+function assertSlasyReg(path:Slasy): asserts path is SlasyReg {
+    assert(!P.isDir(path), path + " is not a directory path");
+}
+function fixSep(dinfo:DirInfo, name:SlasyBase):SlasyBase {
+    if (P.isDir(name)) return name as SlasyBase;
+    if (dinfo[name as SlasyBase]) return name as SlasyBase;
+    const dname=P.directorify(name) as SlasyBase;
     if(dinfo[dname]) {
         return dname;
     }
@@ -118,44 +156,44 @@ function fixSep(dinfo:DirInfo, name:string) {
 }
 
 interface CacheableStorage {
-    getContentItem(regPath:string):Content;
-    hasContentItem(regPath:string):boolean;
-    setContentItem(regPath:string, c:Content):void;
-    removeContentItem(regPath:string):void;
+    getContentItem(regPath:SlasyReg):Content;
+    hasContentItem(regPath:SlasyReg):boolean;
+    setContentItem(regPath:SlasyReg, c:Content):void;
+    removeContentItem(regPath:SlasyReg):void;
 
-    getDirInfoItem(dirPath:string):DirInfo;
-    hasDirInfoItem(dirPath:string):boolean;
-    setDirInfoItem(dirPath:string, d:DirInfo):void;
-    removeDirInfoItem(dirPath:string):void;
+    getDirInfoItem(dirPath:SlasyDir):DirInfo;
+    hasDirInfoItem(dirPath:SlasyDir):boolean;
+    setDirInfoItem(dirPath:SlasyDir, d:DirInfo):void;
+    removeDirInfoItem(dirPath:SlasyDir):void;
 }
 class NoCacheStorage implements CacheableStorage {
     constructor(public storage:IStorage, public mountPoint:string){}
-    private getItem(fixedPath:string) {
+    private getItem(fixedPath:Slasy) {
         assertAbsolute(fixedPath);
         const key = fixedPath;
         assert(this.itemExists(fixedPath), `file(item) ${key} is not found.`);
         return this.storage.getItem(key)!;
     }
-    private itemExists(fixedPath:string) {
+    private itemExists(fixedPath:Slasy) {
         assertAbsolute(fixedPath);
         const key = fixedPath;
         return this.storage.itemExists(key);
     }
-    private setItem(fixedPath:string, value:string) {
+    private setItem(fixedPath:Slasy, value:string) {
         assertAbsolute(fixedPath);
         const key = fixedPath;
         assert(key.indexOf("..") < 0);
         assert(P.startsWith(key, P.SEP));
         this.storage.setItem(key, value);
     }
-    private removeItem(fixedPath:string) {
+    private removeItem(fixedPath:Slasy) {
         assertAbsolute(fixedPath);
         const key = fixedPath;
         // Cannot assure this when write->remove very quickly(=before commit).
         //assert(key in this.storage, `removeItem: ${key} is not in storage`);
         this.storage.removeItem(key);
     }
-    getContentItem(regPath: string): Content {
+    getContentItem(regPath: SlasyReg): Content {
         assertAbsoluteRegular(regPath);
         const cs = this.getItem(regPath);
         if (Content.looksLikeDataURL(cs)) {
@@ -164,11 +202,11 @@ class NoCacheStorage implements CacheableStorage {
             return Content.plainText(cs);
         }
     }
-    hasContentItem(regPath: string): boolean {
+    hasContentItem(regPath: SlasyReg): boolean {
         assertAbsoluteRegular(regPath);
         return this.itemExists(regPath);
     }
-    setContentItem(regPath: string, content: Content): void {
+    setContentItem(regPath: SlasyReg, content: Content): void {
         assertAbsoluteRegular(regPath);
         let t:null|string = null;
         if (content.hasPlainText()) {
@@ -181,11 +219,11 @@ class NoCacheStorage implements CacheableStorage {
             this.setItem(regPath, content.toURL());
         }
     }
-    removeContentItem(regPath: string): void {
+    removeContentItem(regPath: SlasyReg): void {
         assertAbsoluteRegular(regPath);
         this.removeItem(regPath);
     }
-    getDirInfoItem(dpath: string): DirInfo {
+    getDirInfoItem(dpath: SlasyDir): DirInfo {
         assertAbsoluteDir(dpath);
         const dinfos = this.getItem(dpath);
         try {
@@ -194,15 +232,15 @@ class NoCacheStorage implements CacheableStorage {
             throw new Error(`Malformed JSON found in ${dpath}`);
         }
     }
-    hasDirInfoItem(dpath: string): boolean {
+    hasDirInfoItem(dpath: SlasyDir): boolean {
         assertAbsoluteDir(dpath);
         return this.itemExists(dpath);
     }
-    setDirInfoItem(dpath: string, d: DirInfo): void {
+    setDirInfoItem(dpath: SlasyDir, d: DirInfo): void {
         assertAbsoluteDir(dpath);
         this.setItem(dpath, JSON.stringify(d));
     }
-    removeDirInfoItem(dpath: string): void {
+    removeDirInfoItem(dpath: SlasyDir): void {
         assertAbsoluteDir(dpath);
         return this.removeItem(dpath);
     }
@@ -264,30 +302,30 @@ class CachedStorage implements CacheableStorage {
             if (d==="deleted") this.raw.removeDirInfoItem(dp);
             else this.raw.setDirInfoItem(dp, d.value);
         }
-        this.reservedDirInfos=new Set<string>();
-        this.reservedContents=new Set<string>();
+        this.reservedDirInfos=new Set<SlasyDir>();
+        this.reservedContents=new Set<SlasyReg>();
         this.htimer=undefined;
         this._commitPromise.resolve();
         this._commitPromise=new MutablePromise();
     }
-    reservedDirInfos=new Set<string>();
-    reservedContents=new Set<string>();
-    constructor(public storage:IStorage, public mountPoint:string){
+    private reservedDirInfos=new Set<SlasyDir>();
+    private reservedContents=new Set<SlasyReg>();
+    constructor(public storage:IStorage, public mountPoint:Canonical){
         this.raw=new NoCacheStorage(storage, mountPoint);
         if (storage instanceof MultiSyncIDBStorage) {
             /* storage.addEventListener may occurs in arbitrary order, See also constructor of LSFS  */
             storage.addEventListener("change", ({key})=>{
                 if (key.endsWith("/")) {
-                    this.reservedDirInfos.delete(key);
-                    this.dirInfoCache.delete(key);
+                    this.reservedDirInfos.delete(key as SlasyDir);
+                    this.dirInfoCache.delete(key as SlasyDir);
                 } else {    
-                    this.reservedContents.delete(key);
-                    this.contentCache.delete(key);
+                    this.reservedContents.delete(key as SlasyReg);
+                    this.contentCache.delete(key as SlasyReg);
                 }
             });
         }
     }
-    getContentItem(regPath: string): Content {
+    getContentItem(regPath: SlasyReg): Content {
         assertAbsoluteRegular(regPath);
         const c=this.contentCache.get(regPath);
         assert(c!=="deleted",`getContentItem: ${regPath} is deleted.`); 
@@ -296,21 +334,21 @@ class CachedStorage implements CacheableStorage {
         this.contentCache.set(regPath, {value:rawc});
         return rawc;
     }
-    hasContentItem(regPath: string): boolean {
+    hasContentItem(regPath: SlasyReg): boolean {
         assertAbsoluteRegular(regPath);
         const c=this.contentCache.get(regPath);
         if (c==="deleted") return false;
         if (c) return true;
         return this.raw.hasContentItem(regPath);
     }
-    setContentItem(regPath: string, c: Content): void {
+    setContentItem(regPath: SlasyReg, c: Content): void {
         assertAbsoluteRegular(regPath);
-        assert(!this.hasDirInfoItem(P.directorify(regPath)), `${regPath} exists as a directroy.`);
+        assert(!this.hasDirInfoItem(P_directorify(regPath)), `${regPath} exists as a directroy.`);
         this.contentCache.set(regPath, {value:c});
         this.reservedContents.add(regPath);
         this.wakeTimer();
     }
-    removeContentItem(regPath: string): void {
+    removeContentItem(regPath:  SlasyReg): void {
         assertAbsoluteRegular(regPath);
         assert(this.hasContentItem(regPath), `Cannot remove: ${regPath} does not exist.`);
         
@@ -319,7 +357,7 @@ class CachedStorage implements CacheableStorage {
         this.wakeTimer();
     }
 
-    getDirInfoItem(dpath: string): DirInfo {
+    getDirInfoItem(dpath: SlasyDir): DirInfo {
         assertAbsoluteDir(dpath);
         const d=this.dirInfoCache.get(dpath);
         assert(d!=="deleted",`getContentItem: ${dpath} is deleted.`); 
@@ -328,22 +366,23 @@ class CachedStorage implements CacheableStorage {
         this.dirInfoCache.set(dpath,{value: rawd});
         return rawd;
     }
-    hasDirInfoItem(dpath: string): boolean {
+    hasDirInfoItem(dpath: SlasyDir): boolean {
         assertAbsoluteDir(dpath);
         const d=this.dirInfoCache.get(dpath);
         if (d==="deleted") return false;
         if (d) return true;
         return this.raw.hasDirInfoItem(dpath);
     }
-    setDirInfoItem(dpath: string, d: DirInfo): void {
+    setDirInfoItem(dpath: SlasyDir, d: DirInfo): void {
         assertAbsoluteDir(dpath);
-        const tsep=P.truncSEP(dpath);// Check for For '/'
-        assert(tsep==="" || !this.hasContentItem(tsep), `${P.truncSEP(dpath)} exists as a regular file.`);
+        const tsep:Canonical=P_truncSep(dpath);
+        // Canonical can be converted into SlasyReg if it is NOT "/".
+        assert(tsep==="/" || !this.hasContentItem(tsep as unknown as SlasyReg), `${P.truncSEP(dpath)} exists as a regular file.`);
         this.dirInfoCache.set(dpath,{value:d});
         this.reservedDirInfos.add(dpath);
         this.wakeTimer();
     }
-    removeDirInfoItem(dpath: string): void {
+    removeDirInfoItem(dpath: SlasyDir): void {
         assertAbsoluteDir(dpath);
         assert(this.hasDirInfoItem(dpath), `Cannot remove: ${dpath} does not exist.`);
 
@@ -363,7 +402,7 @@ class CachedStorage implements CacheableStorage {
         return await this.raw.reload(key);
     }
 }
-export class LSFS extends FS {
+export class LSFS implements IFileSystem {
     //dirCache:{[key:string]:DirInfo}={};
     baseTimestamp=now();
     cachedStorage: CachedStorage;
@@ -374,9 +413,13 @@ export class LSFS extends FS {
     commitPromise(){
         return this.cachedStorage.commitPromise();
     }
-    constructor(rootFS:RootFS, mountPoint: string, public storage:IStorage, {readOnly}:LSFSOptions={}) {
+    getRootFS(){return this.rootFS;}
+    onAddObserver(path: string):undefined {
+    }
+    get storage(){return this.cachedStorage.storage;}
+    constructor(public rootFS:IRootFS, public mountPoint: Canonical, /*public*/ storage:IStorage, {readOnly}:LSFSOptions={}) {
         assert(storage, " new LSFS fail: no storage");
-        super(rootFS, mountPoint);
+        //super(rootFS, mountPoint);
         //if (!storage.itemExists(mountPoint)) storage.setItem(mountPoint,"{}");
         this.readOnly=!!readOnly;
         this.cachedStorage=new CachedStorage(storage, mountPoint);
@@ -384,24 +427,25 @@ export class LSFS extends FS {
             /* storage.addEventListener may occurs in arbitrary order, See also constructor of CachedStorage  */
             storage.addEventListener("change",({key,value})=>setTimeout(()=>{
                 // so setTimeout is used, it ensures occur after handler in constructor of CachedStorage
-                if (!this.exists(key)) {
-                    this.getRootFS().notifyChanged(key, {eventType:"delete"});   
+                const c_key=toCanonicalPath(key);
+                if (!this.exists(c_key)) {
+                    this.rootFS.notifyChanged(c_key, {eventType:"delete"});   
                 } else {
-                    const stat=this.lstat(key); // do not use ...spread, it also spreads size, that may be non-existent(* current implementation gets size from content)
+                    const stat=this.lstat(c_key); // do not use ...spread, it also spreads size, that may be non-existent(* current implementation gets size from content)
                     // Why may be non-existent? -> metaInfo and content may not match when many change events were sent via BroadcastChannel. 
                     const statany=stat as any;
                     statany.eventType="change";
-                    this.getRootFS().notifyChanged(key, statany); 
+                    this.rootFS.notifyChanged(c_key, statany); 
                 }
             },100));
         }
     }
-    static meta2dirent(parentPath:string, fixedName:string, lstat:Stats):Dirent {
+    static meta2dirent(parentPath:SlasyDir, fixedName:SlasyBase, lstat:Stats):Dirent {
         // fixedName: if the name refers to directory, it MUST end with /
         const dir=fixedName.endsWith("/");
         return {
-            name: P.truncSEP(fixedName),
-            parentPath: P.truncSEP(parentPath),
+            name: P_truncSep(fixedName),
+            parentPath: P_truncSep(parentPath),
             isFile: ()=>!dir,
             isDirectory: ()=>dir,
             isBlockDevice: ()=>false,
@@ -412,26 +456,29 @@ export class LSFS extends FS {
             extra: {lstat},
         };
     }
-    static ramDisk(rootFS:RootFS, mountPoint:string, options:LSFSOptions={readOnly:false}) {
+    static ramDisk(rootFS:IRootFS, mountPoint:Canonical, options:LSFSOptions={readOnly:false}) {
         const s:IStorage = new MemoryStorage({});
-        s.setItem(mountPoint, "{}");
+        s.setItem(P_directorify(mountPoint), "{}");
         options = options || {};
-        return new LSFS(rootFS, mountPoint, s , options);
+        return new LSFS(rootFS, toCanonicalPath(mountPoint), s , options);
     }
     static now = now;
-    private size(fixedPath: string):number {
-        if (P.isDir(fixedPath)) return 1;//TODO
+    inMyFS(path: string): boolean {
+        return toCanonicalPath(path).startsWith(this.mountPoint);
+    }
+    private size(fixedPath: Slasy):number {
+        if (P_isDir(fixedPath)) return 1;//TODO
         return this.cachedStorage.getContentItem(fixedPath).roughSize();
     }
-    private getDirInfo(dpath:string):DirInfo {
-        assertAbsoluteDir(dpath);
+    private getDirInfo(dpath:SlasyDir):DirInfo {
+        //assertAbsoluteDir(dpath);
         assert(this.inMyFS(dpath));
         return this.cachedStorage.getDirInfoItem(dpath);
     }
-    private putDirInfo(dpath:string, dinfo:DirInfo, removed:boolean) {
+    private putDirInfo(dpath:SlasyDir, dinfo:DirInfo, removed:boolean) {
         assertAbsoluteDir(dpath);
         assert(this.inMyFS(dpath));
-        const ppath = up(dpath);
+        const ppath = P_up(dpath);
         if (!ppath || !this.inMyFS(ppath)) {
             this.cachedStorage.setDirInfoItem(dpath, dinfo);
             return; 
@@ -444,11 +491,12 @@ export class LSFS extends FS {
         this.cachedStorage.setDirInfoItem(dpath, dinfo);
         this._touch(pdinfo, ppath, P_name(dpath), removed);
     }
-    private _touch(dinfo:DirInfo, dpath:string, fixedName:string, removed:boolean) {
-        assertAbsoluteDir(dpath);
+    // `dinfo` should be DirInfo of `dpath`
+    private _touch(dinfo:DirInfo, dpath:SlasyDir, fixedName:SlasyBase, removed:boolean) {
+        //assertAbsoluteDir(dpath);
         // removed: this touch is caused by removing the file/dir.
         assert(this.inMyFS(dpath));
-        let evt:WatchEvent;
+        let evt:ObserverEvent;
         if (removed) {
             evt={eventType:"delete"};
         } else {
@@ -465,7 +513,7 @@ export class LSFS extends FS {
         this.getRootFS().notifyChanged(P.rel(dpath, fixedName), evt);
         this.putDirInfo(dpath, dinfo, removed);
     }
-    private removeEntry(dinfo:DirInfo, dpath:string, fixedName:string) {
+    private removeEntry(dinfo:DirInfo, dpath:string, fixedName:SlasyBase) {
         assertAbsoluteDir(dpath);
         if (dinfo[fixedName]) {
             delete dinfo[fixedName];
@@ -476,11 +524,12 @@ export class LSFS extends FS {
     private isRAM() {
         return this.storage instanceof MemoryStorage;
     }
-    private fixPath(path:string, parent:string):[DirInfo, string, string] {
+    /* `parent` should be parent of `path`     */
+    private fixPath(path:string, parent:SlasyDir):[DirInfo, Slasy, SlasyBase] {
         const name=P_name(path);
         const pinfo=this.getDirInfo(parent);
         const fixedName=fixSep(pinfo, name);
-        const fixedPath=P.rel(parent, fixedName);
+        const fixedPath=P_rel(parent, fixedName);
         return [pinfo, fixedPath, fixedName];
     }
     //-----------------------------------
@@ -489,7 +538,16 @@ export class LSFS extends FS {
         return (this.isRAM() ? "ramDisk" : "localStorage");
     }
     public isReadOnly() { return this.readOnly; }
-    public getContent(path:string) {
+    public assertWriteable(path:Canonical){
+        if(this.isReadOnly()) throw new Error(`Cannot write to ${path} which is read-only.`);
+    }
+    public assertExist(path:Canonical) {
+        if(!this.exists(path)) throw createENOENT(path);
+    }
+    public assertDirInfoItemExist(path:SlasyDir) {
+        if (!this.cachedStorage.hasDirInfoItem(path)) throw createENOENT(path);
+    }
+    public getContent(path:Canonical) {
         assertAbsoluteRegular(path);
         const stat=this.lstat(path);
         if (stat.isDirectory()) throw createEISDIR(path);
@@ -502,7 +560,7 @@ export class LSFS extends FS {
         }
         return c;*/
     }
-    public setContent(path:string, content: Content):void {
+    public setContent(path:Canonical, content: Content):void {
         assertAbsoluteRegular(path);
         this.assertWriteable(path);
         if (this.exists(path)) {
@@ -511,6 +569,8 @@ export class LSFS extends FS {
             if (stat.isSymbolicLink()) throw createIOError("EINVAL",`${path}: Cannot write content to symlink itself.`);   
         }
         const regPath=path;
+        const parent=P_up(regPath);
+        if (!parent || !this.cachedStorage.hasDirInfoItem(parent)) throw createENOENT(regPath); 
         /*let t:null|string = null;
         if (content.hasPlainText()) {
             t = content.toPlainText();
@@ -525,16 +585,15 @@ export class LSFS extends FS {
         }*/
         // *1
     }
-    public appendContent(path:string, content: Content) {
+    public appendContent(path:Canonical, content: Content) {
         let c = "";
         if (this.exists(path)) c = this.getContent(path).toPlainText();
         return this.setContent(path, Content.plainText(c + content.toPlainText()));
     }
     // throws exception if not exists
-    public lstat(path: string): StatsEx {
+    public lstat(path: Canonical): StatsEx {
         this.assertExist(path);
-        assertAbsolute(path);
-        const parent = P.up(path);
+        const parent = P_up(path);
         if (!parent) {
             return meta2stat({lastUpdate: this.baseTimestamp},true, ()=>0);
         }
@@ -552,13 +611,13 @@ export class LSFS extends FS {
             }
         });
     }
-    public setMtime(path: string, time: number): void {
+    public setMtime(path: Canonical, time: number): void {
         this.assertExist(path);
         return this.setMetaInfo(path,{lastUpdate:time});
     }
-    private setMetaInfo(path:string, info:MetaInfo) {
+    private setMetaInfo(path:Canonical, info:MetaInfo) {
         this.assertWriteable(path);
-        const parent = P.up(path);
+        const parent = P_up(path);
         if (!parent || !this.inMyFS(parent)) {
             return;
         }
@@ -568,88 +627,103 @@ export class LSFS extends FS {
         // fails on symlink
         // assert(this.itemExists(fixedPath), `setMetaInfo: item ${fixedPath} not found`);
     }
-    public mkdir(path:string) {
-        assertAbsolute(path);
-        const dpath=P.directorify(path);
-        this.assertWriteable(dpath);
-        this.touch(dpath);
+    public mkdir(path:Canonical) {
+        //assertAbsolute(path);
+        //const dpath=P.directorify(path);
+        this.assertWriteable(path);
+        if (this.exists(path)) throw createEEXIST(path, "mkdir");
+        const fixedPath=P_directorify(path);
+        this.cachedStorage.setDirInfoItem(fixedPath,{});
+
+        const parent=P_up(path);
+        const pinfo=this.getDirInfo(parent);
+        this._touch(pinfo, parent, P_name(fixedPath), false);
     }
-    public opendir(path:string) {
+    public opendir(path:Canonical):BaseName[] {
         //succ: iterator<string> // next()
-        const dpath=P.directorify(path);
+        const dpath=P_directorify(path);
         const inf = this.getDirInfo(dpath);
-        const res = [] as string[];
+        const res = [] as BaseName[];
         for (let i in inf) {
-            assert(inf[i]);
-            if (inf[i].trashed) continue;
-            res.push(i);
+            assert(inf[i as SlasyBase]);
+            if (inf[i as SlasyBase].trashed) continue;
+            res.push(P_truncSep(i as SlasyBase));
         }
         return res;
     }
-    public opendirent(path:string) {
+    public opendirent(path:Canonical):Dirent[] {
         //succ: iterator<string> // next()
-        const dpath=P.directorify(path);
+        const dpath=P_directorify(path);
         const inf = this.getDirInfo(dpath);
         const res = [] as Dirent[];
-        for (let fixedName in inf) {
-            assert(inf[fixedName]);
-            if (inf[fixedName].trashed) continue;
-            res.push(LSFS.meta2dirent(dpath, fixedName, meta2stat(inf[fixedName], P.isDir(fixedName), ()=>this.size(P.rel(dpath, fixedName))   )  ));
+        for (let sb in inf) {
+            //assert(inf[sb as SlasyBase]);
+            if (inf[sb as SlasyBase].trashed) continue;
+            res.push(LSFS.meta2dirent(dpath, sb as SlasyBase, 
+                meta2stat(inf[sb as SlasyBase], P.isDir(sb), 
+                ()=>this.size(P_rel(dpath, sb as SlasyBase))   )  ));
         }
         return res;
     }
     public direntOfMountPoint():Dirent {
         const lstat=this.lstat(this.mountPoint);
         return {
-            name: P.truncSEP(P.name(this.mountPoint)), 
-            parentPath: P.up(this.mountPoint), 
+            name: basename(this.mountPoint), 
+            parentPath: up(this.mountPoint), 
             ...lstat,
             extra:{
                 lstat
             },
         };
     }
-    public rm(path:string) {
-        assertAbsolute(path);
+    public rm(path:Canonical) {
+        //assertAbsolute(path);
+        /*if (path===this.mountPoint) {
+            throw createIOError("EROFS" ,path + ": Cannot remove. It is root of this FS.");
+        }*/
         this.assertWriteable(path);
-        const parent = P.up(path);
+        const parent = P_up(path);
         if (parent == null || !this.inMyFS(parent)) {
             throw createIOError("EROFS" ,path + ": Cannot remove. It is root of this FS.");
         }
         this.assertExist(path);
         const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
-        const lstat=this.lstat(fixedPath);
+        const lstat=this.lstat(path);
         const issym=lstat.isSymbolicLink();
         if (lstat.isDirectory() && !issym){
-            const lis = this.opendir(fixedPath);
+            const lis = this.opendir(path);
             if (lis.length > 0) {
                 throw createIOError("ENOTEMPTY",`${fixedPath}: Directory not empty`);
             }
+            assertSlasyDir(fixedPath);
             this.cachedStorage.removeDirInfoItem(fixedPath);
-        } else if (!issym) this.cachedStorage.removeContentItem(fixedPath);
+        } else if (!issym) {
+            assertSlasyReg(fixedPath);
+            this.cachedStorage.removeContentItem(fixedPath);
+        }
         this.removeEntry(pinfo, parent, fixedName);
     }
     // It does not follow links.
-    public exists(path: string) {
-        assertAbsolute(path);
-        const parent = P.up(path);
+    public exists(path: Canonical) {
+        //assertAbsolute(path);
+        const parent = P_up(path);
         if (parent == null || !this.inMyFS(parent)) return true;
         if (!this.cachedStorage.hasDirInfoItem(parent)) return false;
         const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
         const res = pinfo[fixedName];
         return (res && !res.trashed);
     }
-    public link(path:string, to:string) {
-        assertAbsolute(path);
-        assertAbsolute(to);
+    public link(path:Canonical, to:string) {
+        //assertAbsolute(path);
+        //assertAbsolute(to);
         this.assertWriteable(path);
         if (this.exists(path)) throw createIOError("EEXIST", `${path}: file exists`);
-        if (P.isDir(path) && !P.isDir(to)) {
+        /*if (P.isDir(path) && !P.isDir(to)) {
             throw createIOError("EINVAL",`${path} can not link to file ${to}`);
         }
         if (!P.isDir(path) && P.isDir(to)) {
             throw createIOError("EINVAL",`${path} can not link to directory ${to}`);
-        }
+        }*/
         const m = {
             link: to,
             lastUpdate: now()
@@ -662,27 +736,30 @@ export class LSFS extends FS {
         assert(this.isLink(path));
     }
     // throws Exception if not exists
-    public isLink(path:string):string|undefined {
+    public isLink(path:Canonical):string|undefined {
         assertAbsolute(path);
         //if (!this.exists(path)) return undefined;
         const m = this.lstat(path);
         return m.linkPath;
     }
-    public  touch(path:string) {
-        assertAbsolute(path);
+    // touch never creates directory!
+    // TODO: Canonical path does not contain trailing slash(truncated), the path treated as a file.
+    //      The real `touch foo/` throws error if foo is a regular file or non-existent
+    //      But current implementation creates a regular file foo.
+    public touch(path:Canonical) {
         this.assertWriteable(path);
-        const parent = up(path);
+        const parent = P_up(path);
+        if (parent != null) this.assertExist(P_truncSep(parent));
         if (!this.exists(path)) {
-            if (P.isDir(path)) {
+            /*if (P_isDir(path)) {
                 const fixedPath=path;
                 this.cachedStorage.setDirInfoItem(fixedPath,{});
-            } else {
-                const fixedPath=path;
+            } else {*/
+                const fixedPath=path as unknown as SlasyReg;
                 this.cachedStorage.setContentItem(fixedPath, Content.plainText(""));
-            }
+            //}
         }
         if (parent != null) {
-            this.assertExist(parent);
             if (this.inMyFS(parent)) {
                 const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
                 this._touch(pinfo, parent, fixedName, false);

@@ -6,6 +6,7 @@
   "main": "src/index.js",
   "types": "src/index.d.ts",
   "scripts": {
+    "build-dev": "npm run tsc && npm run webpack-dev",
     "tsc": "npx tsc",
     "webpack-dev": "npx webpack --mode=development",
     "webpack": "npx webpack --mode=production",

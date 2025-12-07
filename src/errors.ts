@@ -23,6 +23,13 @@ export function createIOError(code: keyof typeof IOErrorMessages, details = ""):
     return err;
 }
 
+export function createEEXIST(
+  path: string,
+  syscall: string = "mkdir"
+) {
+    return createIOError("EEXIST",`file already exists, ${syscall} '${path}'`);
+}
+
 
 export function createENOENT(
   path: string,

@@ -78,7 +78,7 @@ try {
     g.FS=FS;
     //let cd =root;
     const r=root.rel.bind(root);
-    fs.mkdirSync("/zip/");
+    fs.mkdirSync("/zip/",{recursive:true});
     fs.mountSync("/zip/","ram");
     await fs.mount("/idb/","idb");
     assert.eq(fs.readdirSync("/").filter((n)=>n==="zip").length, 1);
@@ -139,7 +139,7 @@ try {
         //--- check lastUpdate
         let d = new Date().getTime();
         testfn.text(testdir.path());
-        _console.log("lastUpdate", testfn.lastUpdate(), d);
+        _console.log("lastUpdate", new Date(testfn.lastUpdate()),  new Date(d));
         assert(Math.abs(testfn.lastUpdate() - d) <= 1000);
         testdir.rel("test.txt").text(ABCD);
         _console.log("romd", romd);

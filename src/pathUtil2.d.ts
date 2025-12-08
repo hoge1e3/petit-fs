@@ -1,0 +1,18 @@
+import { Absolute, BaseName, Canonical, Directorified, Normalized } from "./types";
+export declare const path: import("path").PlatformPath;
+export declare function isAbsolute(p: string): p is Absolute;
+export declare function asAbsolute(p: string): Absolute;
+export declare function normalize(p: Absolute): Canonical;
+export declare function filify(p: string): Normalized;
+export declare function directorify(p: Absolute & Normalized): Absolute & Directorified;
+export declare function directorify(p: Normalized): Directorified;
+export declare function directorify(p: Absolute): Absolute;
+export declare function directorify(p: string): Directorified;
+export declare function up(p: Canonical): Canonical | null;
+export declare function up(p: string): string | null;
+export declare function join(a: Canonical, ...sub: BaseName[]): Canonical;
+export declare function join(a: Absolute, ...sub: string[]): Absolute;
+export declare function joinCB(c: Canonical, b: BaseName): Canonical;
+export declare function basename(s: string): BaseName;
+export declare function toAbsolutePath(_path: string): Absolute;
+export declare function toCanonicalPath(_path: string): Canonical;

@@ -89,7 +89,7 @@ try {
     const zip=r("zip/");
     assert(zip.exists());
     assert(zip.isDir());
-    assert(fs.readdirSync("/").includes("zip"));
+    assert(fs.readdirSync("/").includes("zip" as any));
     assert.eq(fs.readdirSync("/",{withFileTypes:true}).filter((e)=>e.name==="zip").length, 1);
     assert(root.ls().includes("zip/"));
     await extractFixture(zip);

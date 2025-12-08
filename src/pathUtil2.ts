@@ -38,6 +38,9 @@ export function join(a:Absolute,...sub:string[]):Absolute;
 export function join(a:Absolute,...sub:string[]):Absolute {
     return path.join(a,...sub) as Absolute;
 }
+export function joinCB(c:Canonical, b:BaseName):Canonical {
+    return (c+(c==="/"?"":path.sep)+b) as Canonical;
+}
 export function basename(s:string) {
     return path.basename(s) as BaseName;
 }

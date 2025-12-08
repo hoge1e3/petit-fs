@@ -54,14 +54,15 @@ function now() {
 }
 const dummyCTime=new Date();
 const dummyCTimeMs=dummyCTime.getTime();
+const dummyATime=new Date();
+const dummyATimeMs=dummyATime.getTime();
+
 let devCount = 0; // A monotonically increasing count of device ids
 let inoCount = 0; // A monotonically increasing count of inodes
 
 function meta2stat(m:MetaInfo, isDir: boolean, sizeF: ()=>number):StatsEx {
     const timeMs=m.lastUpdate;
     const time=new Date(timeMs);
-    const dummyATime=new Date();
-    const dummyATimeMs=dummyATime.getTime();
     return {
         linkPath: m.link,
         atime: dummyATime,
@@ -488,14 +489,12 @@ export class LSFS implements IFileSystem {
     }
     private getDirInfo(dpath:SlasyDir):DirInfo {
         //assertAbsoluteDir(dpath);
-        assert(this.inMyFS(dpath));
         return this.cachedStorage.getDirInfoItem(dpath);
     }
     private putDirInfo(dpath:SlasyDir, dinfo:DirInfo, removed:boolean) {
         //assertAbsoluteDir(dpath);
-        assert(this.inMyFS(dpath));
         const ppath = P_up(dpath);
-        if (!ppath || !this.inMyFS(ppath)) {
+        if (!ppath || /*!this.inMyFS(ppath)*/ dpath===this.mountPoint+SEP) {
             this.cachedStorage.setDirInfoItem(dpath, dinfo);
             return; 
         }
@@ -507,11 +506,11 @@ export class LSFS implements IFileSystem {
         this.cachedStorage.setDirInfoItem(dpath, dinfo);
         this._touch(pdinfo, ppath, P_name(dpath), removed);
     }
+    // _touch may create directory 
     // `dinfo` should be DirInfo of `dpath`
     private _touch(dinfo:DirInfo, dpath:SlasyDir, fixedName:SlasyBase, removed:boolean) {
         //assertAbsoluteDir(dpath);
         // removed: this touch is caused by removing the file/dir.
-        assert(this.inMyFS(dpath));
         let evt:ObserverEvent;
         if (removed) {
             evt={eventType:"delete"};
@@ -612,10 +611,7 @@ export class LSFS implements IFileSystem {
     public lstat(path: Canonical): StatsEx {
         this.assertExist(path);
         const parent = P_up(path);
-        if (!parent) {
-            return meta2stat({lastUpdate: this.baseTimestamp},true, ()=>0);
-        }
-        if (!this.inMyFS(parent)) {
+        if (!parent || path===this.mountPoint) {
             return meta2stat({lastUpdate: this.baseTimestamp},true, ()=>0);
         }
         const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
@@ -636,7 +632,7 @@ export class LSFS implements IFileSystem {
     private setMetaInfo(path:Canonical, info:MetaInfo) {
         this.assertWriteable(path);
         const parent = P_up(path);
-        if (!parent || !this.inMyFS(parent)) {
+        if (!parent || path===this.mountPoint) {
             return;
         }
         const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
@@ -652,10 +648,14 @@ export class LSFS implements IFileSystem {
         if (this.exists(path)) throw createEEXIST(path, "mkdir");
         const fixedPath=P_directorify(path);
         this.cachedStorage.setDirInfoItem(fixedPath,{});
-
+        // path is not existsent -> 
+        //   parent is inMyFS, 
+        //   because if parent is not inMyFS, path is mountPoint.
+        //   a mountPoint always exists. so path is existent. Paradox! 
         const parent=P_up(path);
         if (!parent) throw new Error(`mkdir:Invalid path state ${path}`);
         const pinfo=this.getDirInfo(parent);
+        //assert(this.inMyFS(parent));        
         this._touch(pinfo, parent, P_name(fixedPath), false);
     }
     public opendir(path:Canonical):BaseName[] {
@@ -702,7 +702,7 @@ export class LSFS implements IFileSystem {
         }*/
         this.assertWriteable(path);
         const parent = P_up(path);
-        if (parent == null || !this.inMyFS(parent)) {
+        if (parent == null || path===this.mountPoint) {
             throw createIOError("EROFS" ,path + ": Cannot remove. It is root of this FS.");
         }
         this.assertExist(path);
@@ -725,8 +725,10 @@ export class LSFS implements IFileSystem {
     // It does not follow links.
     public exists(path: Canonical) {
         //assertAbsolute(path);
+        if (path===this.mountPoint) return true;
         const parent = P_up(path);
-        if (parent == null || !this.inMyFS(parent)) return true;
+        // parent is inMyFS (path is not mountPoint, so parent is inMyFS)
+        if (parent == null /*|| !this.inMyFS(parent)*/) return true;
         if (!this.cachedStorage.hasDirInfoItem(parent)) return false;
         const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
         const res = pinfo[fixedName];
@@ -766,25 +768,18 @@ export class LSFS implements IFileSystem {
     //      But current implementation creates a regular file foo.
     public touch(path:Canonical) {
         this.assertWriteable(path);
+        if (path===this.mountPoint) return;
         const parent = P_up(path);
-        if (parent != null) this.assertExist(P_truncSep(parent));
-        if (!this.exists(path)) {
-            /*if (P_isDir(path)) {
-                const fixedPath=path;
-                this.cachedStorage.setDirInfoItem(fixedPath,{});
-            } else {*/
-                const fixedPath=path as unknown as SlasyReg;
+        if (!parent) throw new Error("touch: Invalid path state: "+path);
+        // parent is inMyFS
+        this.assertExist(P_truncSep(parent));
+        const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
+        if (!P_isDir(fixedPath)) {            
+            if (!this.cachedStorage.hasContentItem(fixedPath)) {
                 this.cachedStorage.setContentItem(fixedPath, Content.plainText(""));
-            //}
-        }
-        if (parent != null) {
-            if (this.inMyFS(parent)) {
-                const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
-                this._touch(pinfo, parent, fixedName, false);
-            } else {
-                //this.getRootFS().resolveFS(parent).touch(parent);
             }
         }
+        this._touch(pinfo, parent, fixedName, false);
      }
     /*getURL(path:string) {
         return this.getContent(path).toURL();

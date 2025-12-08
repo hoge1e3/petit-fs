@@ -7,8 +7,8 @@ import { createENOENT, createENOTDIR, createIOError } from "./errors.js";
 import path2 from "./path/index.js";
 const {setProcess}=path2;
 export const path=path2.path;
-import {basename, directorify, isAbsolute, join, normalize, toAbsolutePath, toCanonicalPath, up } from "./pathUtil2.js";
-import { Absolute, Canonical } from "./types.js";
+import {basename, directorify, isAbsolute, join, joinCB, normalize, toAbsolutePath, toCanonicalPath, up } from "./pathUtil2.js";
+import { Absolute, BaseName, Canonical } from "./types.js";
 import { Dirent, FSTypeName, IFileSystem, IRootFS, ObserverEvent } from "./fs/types.js";
 //import PathUtil from "./fs/PathUtil.js";
 import MimeTypes from "./fs/MIMETypes.js";
@@ -293,7 +293,7 @@ export class FileSystem {
      * Recursively remove all files and directories underneath the provided path.
      */
     public rimrafSync(_path: string): void {
-        const path=toAbsolutePath(_path);
+        const path=toCanonicalPath(_path);
         try {
             const stats = this.lstatSync(path);
             if (stats.isFile() || stats.isSymbolicLink()) {
@@ -301,7 +301,7 @@ export class FileSystem {
             }
             else if (stats.isDirectory()) {
                 for (const file of this.readdirSync(path)) {
-                    this.rimrafSync(join(path, file));
+                    this.rimrafSync(joinCB(path, file));
                 }
                 this.rmdirSync(path);
             }
@@ -350,7 +350,7 @@ export class FileSystem {
         const [rpfs, rppath]=this.resolveLink(parent);
         // rpfs=(fs of /a/)    rppath=/a/ 
         // rp=Resolved Parent. rpfs, rppath have NO link components.
-        const rpath=join(rppath, basename(path));
+        const rpath=joinCB(rppath, basename(path));
         // rpath = /a/b/ 
         const to=(rpfs.exists(rpath) && rpfs.isLink(rpath));
         // to = /c/d/   (or, to = ../c/d/)
@@ -375,7 +375,7 @@ export class FileSystem {
             return this.resolveLink(path);
         }
         const [fs, _dir]=this.resolveLink(dir);
-        return [fs, join(_dir, basename(path))];
+        return [fs, joinCB(_dir, basename(path))];
     }
     /**
      * Make a directory and all of its parent paths (if they don't exist).
@@ -465,9 +465,9 @@ export class FileSystem {
      *
      * NOTE: do not rename this method as it is intended to align with the same named export of the "fs" module.
      */
-    public readdirSync(path: string): string[];
+    public readdirSync(path: string): BaseName[];
     public readdirSync(path: string, opt:{withFileTypes:true}): Dirent[];
-    public readdirSync(_path: string, opt:{withFileTypes:boolean}={withFileTypes:false}): string[]|Dirent[] {
+    public readdirSync(_path: string, opt:{withFileTypes:boolean}={withFileTypes:false}): BaseName[]|Dirent[] {
         const path=toCanonicalPath(_path);
         const [fs, fpath]=this.resolveLink(path);
         const mps=this.childrenOfMountPoint(fpath);
@@ -612,8 +612,8 @@ export class FileSystem {
             if (!recursive) throw createIOError("EISDIR",`${src} is a directory`);
             dfs.mkdir(dst);
             for (const f of this.readdirSync(src, {withFileTypes:true})) {
-                const srcp=join(src,f.name);
-                const dstp=join(dst,f.name);
+                const srcp=joinCB(src,f.name);
+                const dstp=joinCB(dst,f.name);
                 if (f.isSymbolicLink()||f.isDirectory()) {
                     this.cpSync(srcp, dstp, {recursive});
                 } else {

@@ -76,9 +76,10 @@ try {
     g.fs=fs;
     g.path=path;
     g.FS=FS;
+    assert(fs.existsSync("/"));
     //let cd =root;
     const r=root.rel.bind(root);
-    fs.mkdirSync("/zip/");
+    fs.mkdirSync("/zip/",{recursive:true});
     fs.mountSync("/zip/","ram");
     await fs.mount("/idb/","idb");
     assert.eq(fs.readdirSync("/").filter((n)=>n==="zip").length, 1);
@@ -88,7 +89,7 @@ try {
     const zip=r("zip/");
     assert(zip.exists());
     assert(zip.isDir());
-    assert(fs.readdirSync("/").includes("zip"));
+    assert(fs.readdirSync("/").includes("zip" as any));
     assert.eq(fs.readdirSync("/",{withFileTypes:true}).filter((e)=>e.name==="zip").length, 1);
     assert(root.ls().includes("zip/"));
     await extractFixture(zip);
@@ -139,7 +140,7 @@ try {
         //--- check lastUpdate
         let d = new Date().getTime();
         testfn.text(testdir.path());
-        _console.log("lastUpdate", testfn.lastUpdate(), d);
+        _console.log("lastUpdate", new Date(testfn.lastUpdate()),  new Date(d));
         assert(Math.abs(testfn.lastUpdate() - d) <= 1000);
         testdir.rel("test.txt").text(ABCD);
         _console.log("romd", romd);
@@ -313,6 +314,7 @@ try {
     await fs.getRootFS().commitPromise();
     assert(!fs.getRootFS().hasUncommited());
     console.log("commited for ",performance.now()-ct,"msec");
+    //await timeout(3000);
     /*while (fs.getRootFS().hasUncommited()) {
         console.log("Waiting for commit...");
         await timeout(500);
@@ -813,6 +815,7 @@ async function extractFixture(to:SFile){
 async function testIDB(pass:number, fixture:SFile, idbdir:SFile) {
     if (pass==1) {
         fixture.copyTo(idbdir);
+        assert(idbdir.exists(), "IDBDir not exists.");
         checkSameDirContents(fixture, idbdir);
     } else {
         checkSameDirContents(fixture, idbdir);

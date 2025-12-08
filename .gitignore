@@ -25,3 +25,12 @@ src/fs/StorageWrapper.js
 src/fs/StorageWrapper.js.map
 test/worker.webpack.js
 .tsbuildinfo
+src/pathUtil2.d.ts
+src/pathUtil2.js
+src/pathUtil2.js.map
+src/types.d.ts
+src/types.js
+src/types.js.map
+src/errors.d.ts
+src/errors.js
+src/errors.js.map

@@ -10,7 +10,7 @@ export const path=path2.path;
 import {basename, directorify, isAbsolute, join, normalize, toAbsolutePath, toCanonicalPath, up } from "./pathUtil2.js";
 import { Absolute, Canonical } from "./types.js";
 import { Dirent, FSTypeName, IFileSystem, IRootFS, ObserverEvent } from "./fs/types.js";
-import PathUtil from "./fs/PathUtil.js";
+//import PathUtil from "./fs/PathUtil.js";
 import MimeTypes from "./fs/MIMETypes.js";
 //import { platform } from "os";
 /*import * as path from "path-module";
@@ -707,7 +707,7 @@ export class FileSystem {
         if (typeof data==="string") {
             fs.setContent(fpath, Content.plainText(data));
         } else {
-            fs.setContent(fpath, Content.bin(data, MimeTypes[PathUtil.ext(path)]|| "application/octet-stream"));//fs.getContentType(path)));
+            fs.setContent(fpath, Content.bin(data, MimeTypes[pathlib.extname(path)]|| "application/octet-stream"));//fs.getContentType(path)));
         }
     }
     public writeSync(fd:number, data: string | Buffer, encoding: string | null = null):void {
@@ -727,7 +727,7 @@ export class FileSystem {
         if (typeof data==="string") {
             fs.appendContent(fpath, Content.plainText(data));
         } else {
-            fs.appendContent(fpath, Content.bin(data, MimeTypes[PathUtil.ext(path)]|| "application/octet-stream"));// fs.getContentType(path)));
+            fs.appendContent(fpath, Content.bin(data, MimeTypes[pathlib.extname(path)]|| "application/octet-stream"));// fs.getContentType(path)));
         }
     }
 

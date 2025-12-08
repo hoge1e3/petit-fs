@@ -1,6 +1,6 @@
 import _p from "./path/index.js";
 import { Absolute, BaseName, Canonical, Directorified, Normalized } from "./types";
-const path=_p.path.posix;
+export const path=_p.path.posix;
 export function isAbsolute(p:string):p is Absolute {
     return path.isAbsolute(p);
 }
@@ -41,10 +41,10 @@ export function join(a:Absolute,...sub:string[]):Absolute {
 export function basename(s:string) {
     return path.basename(s) as BaseName;
 }
-export function toAbsolutePath(path:string):Absolute {
-    if (isAbsolute(path)) return path;
-    return join(process.cwd() as Absolute, path);
+export function toAbsolutePath(_path:string):Absolute {
+    //if (isAbsolute(_path)) return _path;
+    return path.resolve(_path) as Absolute;
 }
-export function  toCanonicalPath(path:string):Canonical {
-    return normalize(toAbsolutePath(path));
+export function  toCanonicalPath(_path:string):Canonical {
+    return path.resolve(_path) as Canonical;
 }

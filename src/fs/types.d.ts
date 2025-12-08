@@ -25,7 +25,7 @@ export class IRootFS {
     mountAsync(mountPoint:string, fs:FSTypeName, options?:LSFSOptions):Promise<IFileSystem>;
     resolveFS(path:string):IFileSystem;
     addObserver(path:string, handler: ObserverHandler):Observer;
-    notifyChanged(path:string, event:ObserverEvent):void;
+    notifyChanged(path:Canonical, event:ObserverEvent):void;
     //availFSTypes():{[key:FSTypeName]: FSType};
 }
 export type AsyncOptions={

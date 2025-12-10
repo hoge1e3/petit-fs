@@ -1,11 +1,12 @@
 {
   "type": "module",
   "name": "petit-fs",
-  "version": "1.6.0",
+  "version": "1.6.2",
   "description": "node/fs compatible interface for browser, using localStorage.",
   "main": "src/index.js",
   "types": "src/index.d.ts",
   "scripts": {
+    "build-dev": "npm run tsc && npm run webpack-dev",
     "tsc": "npx tsc",
     "webpack-dev": "npx webpack --mode=development",
     "webpack": "npx webpack --mode=production",
@@ -49,6 +50,6 @@
     "@hoge1e3/assert": "^2.1.4",
     "buffer": "^6.0.3",
     "mutable-promise": "^1.1.15",
-    "sync-idb-kvs-multi": "^1.5.8"
+    "sync-idb-kvs-multi": "^1.6.2"
   }
 }

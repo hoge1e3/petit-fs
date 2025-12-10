@@ -1,6 +1,5 @@
 import A from "./assert.js";
 import {Content as _Content} from "@hoge1e3/content";
-import FSClass from "./FSClass.js";
 import _Env from "./Env.js";
 import _RootFS from "./RootFS.js";
 import _LSFS from "./LSFS.js";
@@ -9,7 +8,7 @@ import P from "./PathUtil.js";
 //import _zip from "./zip.js";
 export let assert = A;
 export let Content = _Content;
-export let Class = FSClass;
+//export let Class = FSClass;
 export let Env = _Env;
 export let LSFS = _LSFS;
 export let NativeFS = {available:false};
@@ -19,8 +18,8 @@ export let RootFS = _RootFS;
 //export let zip = _zip;
 var rootFS;
 var env = new Env({});
-export let addFSType = FSClass.addFSType;
-export let availFSTypes = FSClass.availFSTypes;
+export let addFSType = RootFS.addFSType;
+export let availFSTypes = RootFS.availFSTypes;
 
 export let setEnvProvider = function (e) {
     env = e;
@@ -89,7 +88,7 @@ export let unmount = function () {
     FS.init();
     return rootFS.unmount.apply(rootFS, arguments);
 };
-let FS={assert,Content,Class,Env,LSFS,NativeFS,
+let FS={assert,Content,Env,LSFS,NativeFS,
     PathUtil,RootFS,addFSType,availFSTypes,setEnvProvider,getEnvProvider,
     setEnv,getEnv,localStorageAvailable,init,getRootFS,expandPath,
     mount,unmount};

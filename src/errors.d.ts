@@ -14,6 +14,7 @@ declare const TemplateIOErrorMessages: {
 };
 export declare const IOErrorMessages: typeof TemplateIOErrorMessages;
 export declare function createIOError(code: keyof typeof IOErrorMessages, details?: string): NodeJS.ErrnoException;
+export declare function createEEXIST(path: string, syscall?: string): NodeJS.ErrnoException;
 export declare function createENOENT(path: string, syscall?: string): NodeJS.ErrnoException;
 export declare function createENOTDIR(path: string, syscall?: string): NodeJS.ErrnoException;
 export declare function createEISDIR(path: string, syscall?: string): NodeJS.ErrnoException;

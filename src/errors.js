@@ -21,6 +21,9 @@ export function createIOError(code, details = "") {
         Error.captureStackTrace(err, createIOError);
     return err;
 }
+export function createEEXIST(path, syscall = "mkdir") {
+    return createIOError("EEXIST", `file already exists, ${syscall} '${path}'`);
+}
 export function createENOENT(path, syscall = "open") {
     return createIOError("ENOENT", `no such file or directory, ${syscall} '${path}'`);
 }

@@ -1,30 +1,27 @@
-import {AsyncOptions, default as FileSystem} from "./FSClass";
+/**
+ * @typedef FileSystem {import("./FSClass").FileSystem}
+ */
 import { LSFSOptions } from "./LSFS";
-export type Stats=import("node:fs").Stats;
-export type ObserverEvent={eventType:"change"|"rename"} & Stats;
-//export type FSTab={fs:FileSystem, mountPoint:string};
-type FSDescriptor={factory:(path:string)=>FileSystem, asyncOptions?:AsyncOptions};
-export type FSTypeName=string;
-export type ObserverHandler=(path:string, event:ObserverEvent)=>void;
-export type Observer={
-    path:string,
-    handler: ObserverHandler,
-    remove():void, 
-};
-export type WatchEvent=(
-    {eventType:"create"|"change"|"rename"} & Stats|
-    {eventType:"delete"} );
-
-export default class RootFS {
-    constructor(/*defaultFS: FileSystem*/);
-    fstab(): FileSystem[];
-    hasUncommited():boolean;
-    commitPromise():Promise<void>;
-    unmount(mountedPoint:string):void;
-    mount(mountPoint:string, fs:FileSystem|FSTypeName, options?:LSFSOptions):FileSystem;
-    mountAsync(mountPoint:string, fs:FSTypeName, options?:LSFSOptions):Promise<FileSystem>;
-    resolveFS(path:string):FileSystem;
-    addObserver(path:string, handler: ObserverHandler):Observer;
-    notifyChanged(path:string, watchEvent:WatchEvent):void;
-    availFSTypes():{[key:FSTypeName]: FSDescriptor};
+import { Canonical } from "../types.js";
+import { FSFactory, FSType, FSTypeName, FSTypeOptions, IFileSystem, IRootFS, Observer, ObserverEvent, ObserverHandler } from "./types.js";
+export default class RootFS implements IRootFS {
+    static fstypes: Record<FSTypeName, FSType>;
+    static addFSType(name: FSTypeName, factory: FSFactory, asyncOptions?: FSTypeOptions): void;
+    static availFSTypes(): Record<string, FSType>;
+    _fstab: IFileSystem[];
+    observers: Observer[];
+    fstab(): IFileSystem[];
+    hasUncommited(): boolean;
+    commitPromise(): Promise<void[]>;
+    unmount(_path: string): boolean;
+    mount(mountPoint: string, _fs: IFileSystem | FSTypeName, options?: LSFSOptions): IFileSystem;
+    mountAsync(mountPoint: string, _fs: FSTypeName, options?: LSFSOptions): Promise<IFileSystem>;
+    resolveFS(path: string): IFileSystem;
+    addObserver(path: Canonical, f: ObserverHandler): {
+        path: Canonical;
+        handler: ObserverHandler;
+        remove: () => void;
+    };
+    notifyChanged(path: Canonical, metaInfo: ObserverEvent): void;
+    getRootFS(): this;
 }

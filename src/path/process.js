@@ -3,7 +3,7 @@
 const winRe = /\b(?:Windows|Win64|Win32)\b/i;
 const emptyEnv = {};
 let process;
-module.setProcess=function (p){
+function setProcess(p){
   process=p;
 };
 const processShim = {
@@ -44,4 +44,4 @@ const processShim = {
   }
 }
 
-module.exports = { process: processShim };
+module.exports = { setProcess, process: processShim };

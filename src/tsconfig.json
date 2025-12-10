@@ -16,5 +16,5 @@
         { "path": "../deprecatedCompat" }*/
     ],
 
-    "include": ["**/*"]
+    "include": ["**/*", "../pkg.cjs"]
 }

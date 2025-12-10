@@ -12,6 +12,8 @@ import { Absolute, BaseName, Canonical } from "./types.js";
 import { Dirent, FSTypeName, IFileSystem, IRootFS, ObserverEvent } from "./fs/types.js";
 //import PathUtil from "./fs/PathUtil.js";
 import MimeTypes from "./fs/MIMETypes.js";
+//import pkg from "../pkg.cjs";
+
 //import { platform } from "os";
 /*import * as path from "path-module";
 export * as path from "path-module";*/
@@ -136,10 +138,22 @@ export const process={
         }
         this._cwd=path;
     },
-    nextTick(f:()=>void) {
-        setTimeout(f,0);
+    nextTick<R = void>(
+        fn: (...args:any[]) => R,
+        ...args:any[]
+    ) {
+        const p = Promise.resolve();
+        return p.then(fn.bind(this,...args));
+    },
+    hrtime(a:[number,number]=[0,0]) {
+        const p=performance.now()/1000;
+        const F=1000*1000*1000;
+        const s2a=(s:number)=>[Math.floor(s), Math.floor((s-Math.floor(s))*F) ];
+        const a2s=([s,nano]:[number,number])=>s+nano/F;
+        return s2a(p-a2s(a));
     },
     versions:{},
+    version: "1.0.0",
     platform: "linux",
 };
 setProcess(process as any);

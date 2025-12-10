@@ -18,5 +18,5 @@
       "incremental": true,
       "tsBuildInfoFile": "./.tsbuildinfo",
     },
-    "include": ["src","test"]
+    "include": ["src","test", "pkg.cjs"]
   }

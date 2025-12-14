@@ -84,10 +84,11 @@ function meta2stat(m:MetaInfo, isDir: boolean, sizeF: ()=>number):StatsEx {
         mode: 0o777,
         rdev: 0,
         isBlockDevice: ()=>false,
-        isDirectory: ()=>isDir,
-        isSymbolicLink: ()=>!!m.link,
+        // just one of either A,B or C must be true
+        isDirectory: ()=>!m.link&&isDir,//A
+        isSymbolicLink: ()=>!!m.link,//B
         isCharacterDevice: ()=>false,
-        isFile:()=>!isDir,
+        isFile:()=>!m.link&&!isDir,//C
         isFIFO:()=>false,
         isSocket:()=>false,
         nlink: 1,
@@ -460,14 +461,16 @@ export class LSFS implements IFileSystem {
     static meta2dirent(parentPath:SlasyDir, fixedName:SlasyBase, lstat:Stats):Dirent {
         // fixedName: if the name refers to directory, it MUST end with /
         const dir=fixedName.endsWith("/");
+        const lnk=lstat.isSymbolicLink();
         return {
             name: P_truncSep(fixedName),
             parentPath: P_truncSep(parentPath),
-            isFile: ()=>!dir,
-            isDirectory: ()=>dir,
+            // just one of either A,B or C must be true
+            isFile: ()=>!lnk&&!dir,
+            isDirectory: ()=>!lnk&&dir,
             isBlockDevice: ()=>false,
             isCharacterDevice: ()=>false,
-            isSymbolicLink: ()=>lstat.isSymbolicLink(),
+            isSymbolicLink: ()=>lnk,
             isFIFO: ()=>false,
             isSocket: ()=>false,
             extra: {lstat},

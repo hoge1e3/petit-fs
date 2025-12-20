@@ -552,8 +552,8 @@ export class LSFS implements IFileSystem {
     }
     //-----------------------------------
     public fstype() {
-        if (this.storage instanceof MultiSyncIDBStorage) return "IndexedDB";
-        return (this.isRAM() ? "ramDisk" : "localStorage");
+        if (this.storage instanceof MultiSyncIDBStorage) return "idb";
+        return (this.isRAM() ? "ram" : "localStorage");
     }
     public isReadOnly() { return this.readOnly; }
     public assertWriteable(path:Canonical){

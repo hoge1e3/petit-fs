@@ -1,5 +1,6 @@
 import { IStorage } from "sync-idb-kvs";
 export class MemoryStorage implements IStorage {
+  storageType="ram";
   async waitForCommit(): Promise<void> {
   }
     constructor(private store: Record<string, string> = {}){}
@@ -25,6 +26,7 @@ export class MemoryStorage implements IStorage {
     }
   }
 export class LocalStorageWrapper implements IStorage {
+  storageType="localStorage";
   async waitForCommit(): Promise<void> {
   }
     constructor(private store: Storage = globalThis.localStorage){}

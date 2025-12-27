@@ -8,7 +8,7 @@ import path2 from "./path/index.js";
 const {setProcess}=path2;
 export const path=path2.path;
 import {basename, directorify, isAbsolute, join, joinCB, normalize, toAbsolutePath, toCanonicalPath, up } from "./pathUtil2.js";
-import { Absolute, BaseName, Canonical } from "./types.js";
+import { Absolute, BaseName, Canonical,Fstab } from "./types.js";
 import { Dirent, FSTypeName, IFileSystem, IRootFS, ObserverEvent } from "./fs/types.js";
 //import PathUtil from "./fs/PathUtil.js";
 import MimeTypes from "./fs/MIMETypes.js";
@@ -267,12 +267,13 @@ export class FileSystem {
         return this;
     }
 
-    /**
+    /*
      * Mounts a physical or virtual file system at a location in this virtual file system.
      *
      * @param mountPoint The path in this virtual file system.
      * @param resolver An object used to resolve files in `source`.
      */
+     /*
     public mountSync(mountPoint: string, resolver: IFileSystem|FSTypeName, options:any={}): IFileSystem {
         const rfs=getRootFS();
         mountPoint=directorify(mountPoint);
@@ -301,7 +302,7 @@ export class FileSystem {
     public commitPromise(){
         const rfs=getRootFS();
         return rfs.commitPromise();
-    }
+    }*/
 
     /**
      * Recursively remove all files and directories underneath the provided path.
@@ -956,6 +957,75 @@ export class FileSystem {
     }
 
 }
+export class DeviceManager{
+    constructor (public fs:FileSystem){
+      
+    }
+      /**
+     * Mounts a physical or virtual file system at a location in this virtual file system.
+     *
+     * @param mountPoint The path in this virtual file system.
+     * @param resolver An object used to resolve files in `source`.
+     */
+    public mountSync(mountPoint: string, resolver: IFileSystem|FSTypeName, options:any={}): IFileSystem {
+        const rfs=getRootFS();
+        mountPoint=directorify(mountPoint);
+        const fs=rfs.mount(mountPoint, resolver,options);
+        this.fs.clearLinkCache();
+        return fs;
+    }
+    public async mount(mountPoint: string, resolver: FSTypeName, options:any={}): Promise<IFileSystem> {
+        const rfs=getRootFS();
+        const mountPoint_d=directorify(mountPoint);
+        const fs=await rfs.mountAsync(mountPoint_d, resolver,options);
+        this.fs.clearLinkCache();
+        return fs;
+    }
+    public async unmount(mountPoint:string) {
+        const rfs=getRootFS();
+        const mountPoint_d=directorify(mountPoint);
+        const fs=rfs.unmount(mountPoint_d);
+        this.fs.clearLinkCache();
+        return fs;
+    }
+    public df() {
+        const rfs=getRootFS();
+        return rfs.fstab();
+    }
+    public commitPromise(){
+        const rfs=getRootFS();
+        return rfs.commitPromise();
+    }
+  readFstab(path="/fstab.json",defaultFSTab:Fstab[]) {
+    try{
+      return JSON.parse(
+        this.fs.readFileSync(path,"utf8"));
+    }catch(e){
+      console.error(e);
+      return defaultFSTab;
+    }
+  }
+  async unmountExceptRoot(){
+    const mounted=this.df().
+    filter(f=>f.mountPoint!=="/").
+    map(f=>f.mountPoint);
+    for (let m of mounted){
+      this.unmount(m);
+    }
+  }
+  async wakeLazies(){
+    const mounted=this.df();
+    for (let m of mounted) {
+        await this.fs.promises.readdir(m.mountPoint);
+    }
+  }
+  async loadFstab(tab:Fstab[]):Promise<void>{
+    for (let {mountPoint,fsType,options} of tab) {
+        // FS.mountAsync does not clear _fs.linkCache
+        await this.mount(mountPoint,fsType,options);
+    }
+  }
+}
 
 export interface FileSystemOptions {
     // Sets the initial timestamp for new files and directories
@@ -1221,8 +1291,20 @@ export class FileSystem_Promises {
   async open(...args:Parameters<FileSystem["openSync"]>) {
       return await retry(()=>this.fs.openSync(...args));
   }
-  async readdir(...args:Parameters<FileSystem["readdirSync"]>) {
-      return await retry(()=>this.fs.readdirSync(...args));
+  readdir(path: string): Promise<BaseName[]>;
+  readdir(path: string, opt:{withFileTypes:true}): Promise<Dirent[]>;
+  async readdir(
+    path: string,
+    opt?: { withFileTypes: true }
+  ) {
+    if (opt) {
+      return await retry(() =>
+        this.fs.readdirSync(path, opt)
+      );
+    }
+    return await retry(() =>
+      this.fs.readdirSync(path)
+    );
   }
   async readFile(...args:Parameters<FileSystem["readFileSync"]>) {
       return await retry(()=>this.fs.readFileSync(...args));

@@ -9,3 +9,8 @@ export type Normalized=string&{[symnorm]:1};
 export type Directorified=string&{[symdir]:1};
 export type Canonical=Absolute&Normalized;
 export type BaseName=string&{[symname]:1};
+export type Fstab={
+  mountPoint:Canonical, 
+  fsType:string, 
+  options?:object
+};

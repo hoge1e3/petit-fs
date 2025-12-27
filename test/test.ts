@@ -1,7 +1,7 @@
 import {assert as _assert} from "chai";
 /*import * as fs from "fs";
 import * as path from "path";*/
-import {fs,path} from "../src/index.js";
+import {fs,dev,path} from "../src/index.js";
 import { Buffer } from "buffer";
 import * as zip from "jszip";
 import {FileSystemFactory,SFile,Content, DirectoryOptions, DirTree, MetaInfo, ExcludeOption, ExcludeHash, getNodeFS} from "@hoge1e3/sfile";
@@ -80,8 +80,8 @@ try {
     //let cd =root;
     const r=root.rel.bind(root);
     fs.mkdirSync("/zip/",{recursive:true});
-    fs.mountSync("/zip/","ram");
-    await fs.mount("/idb/","idb");
+    dev.mountSync("/zip/","ram");
+    await dev.mount("/idb/","idb");
     assert.eq(fs.readdirSync("/").filter((n)=>n==="zip").length, 1);
     assert(fs.readdirSync("/").every((n)=>!n.includes("/")));
     assert.eq(fs.readdirSync("/",{withFileTypes:true}).filter((e)=>e.name==="zip").length, 1);

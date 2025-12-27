@@ -1,6 +1,6 @@
 import {assert as _assert} from "chai";
-import {fs,path} from "../src/index.js";
-await fs.mount("/idb/","idb");
+import {fs,dev,path} from "../src/index.js";
+await dev.mount("/idb/","idb");
 import { Buffer } from "buffer";
 import {FileSystemFactory,SFile,Content, DirectoryOptions, DirTree, MetaInfo, ExcludeOption, ExcludeHash, getNodeFS} from "@hoge1e3/sfile";
 const FS=new FileSystemFactory({

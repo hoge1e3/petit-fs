@@ -50,6 +50,6 @@
     "@hoge1e3/assert": "^2.1.4",
     "buffer": "^6.0.3",
     "mutable-promise": "^1.1.15",
-    "sync-idb-kvs-multi": "^1.6.5"
+    "sync-idb-kvs-multi": "^1.6.7"
   }
 }

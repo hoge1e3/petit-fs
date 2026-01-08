@@ -32,7 +32,7 @@
   "homepage": "https://github.com/hoge1e3/petit-fs#readme",
   "devDependencies": {
     "@eslint/js": "^9.1.1",
-    "@hoge1e3/sfile": "^1.5.2",
+    "@hoge1e3/sfile": "^1.6.6",
     "@types/chai": "^5.0.1",
     "@types/escodegen": "^0.0.10",
     "@types/espree": "^10.0.0",

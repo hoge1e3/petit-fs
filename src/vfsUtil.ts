@@ -984,9 +984,9 @@ export class DeviceManager{
     public async unmount(mountPoint:string) {
         const rfs=getRootFS();
         const mountPoint_d=directorify(mountPoint);
-        const fs=rfs.unmount(mountPoint_d);
+        const unmounted=rfs.unmount(mountPoint_d);
         this.fs.clearLinkCache();
-        return fs;
+        return unmounted;
     }
     public df() {
         const rfs=getRootFS();

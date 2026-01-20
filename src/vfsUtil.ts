@@ -1010,7 +1010,7 @@ export class DeviceManager{
     filter(f=>f.mountPoint!=="/").
     map(f=>f.mountPoint);
     for (let m of mounted){
-      this.unmount(m);
+      await this.unmount(m);
     }
   }
   async wakeLazies(){

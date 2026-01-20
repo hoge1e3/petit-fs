@@ -164,7 +164,12 @@ function fixSep(dinfo:DirInfo, name:SlasyBase):SlasyBase {
     }
     return name;
 }
-
+/*
+CachedStorage(Buffer to write NoCacheStorage, prevent frequent write operation) -> 
+NoCacheStorage(Separate content/dirinfo items) -> 
+MultiSyncIDBStorage(Broadcast changes of SyncIDBStorage to workers) -> 
+SyncIDBStorage(The IDB)
+*/
 interface CacheableStorage {
     getContentItem(regPath:SlasyReg):Content;
     hasContentItem(regPath:SlasyReg):boolean;

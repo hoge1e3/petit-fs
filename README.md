@@ -42,3 +42,9 @@ closeSync(fd: number): void;
     - `src/MIMETypes.js` maps extension to content types. If content type is "text/....", it is regarded as text file
 - The key of a directory entry always ends with /
     - The value is a JSON with file list and attributes(lastUpdate).
+
+# Furthur info 
+
+This project is intended to implement [petit-node](https://github.com/hoge1e3/petit-node), 
+npm-like module loader works in browser. 
+Detailed infomation for file system is described in [Wiki](https://github.com/hoge1e3/petit-node/wiki/dev).

@@ -1,10 +1,10 @@
 //define(["FSClass","PathUtil","extend","assert","Util","Content"],
 //        function(FS,P,extend,assert,Util,Content) {
 //import P from "./PathUtil.js";
-import {Content} from "@hoge1e3/content";
+import {Content, SerializedContent} from "@hoge1e3/content";
 import {ok} from "@hoge1e3/assert";
 import RootFS from "./RootFS.js";
-import { LocalStorageWrapper, MemoryStorage} from "./StorageWrapper.js";
+//import { LocalStorageWrapper, MemoryStorage} from "./StorageWrapper.js";
 import { IStorage, SyncIDBStorage } from "sync-idb-kvs";
 import { MultiSyncIDBStorage } from "sync-idb-kvs-multi";
 import MutablePromise from "mutable-promise";
@@ -123,31 +123,21 @@ export type SlasyBase=string&{[symsl_base]:1}; //  file  dir/
 export type DirInfo={[key:SlasyBase]:MetaInfo};
 RootFS.addFSType("localStorage", function (rootFS:IRootFS, mountPoint:Canonical, options:LSFSOptions) {
     if (!localStorage[mountPoint]) localStorage[P_directorify(mountPoint)]="{}";
-    return new LSFS(rootFS, mountPoint, new LocalStorageWrapper(localStorage), options);
+    return new LSFS(rootFS, mountPoint, new SlasyLocalStorage(localStorage), options);
 });
 RootFS.addFSType("ram", function (rootFS:IRootFS, mountPoint:Canonical, options:LSFSOptions) {
     return LSFS.ramDisk(rootFS, mountPoint, options);
 });
 RootFS.addFSType("idb", async function (rootFS:IRootFS, mountPoint:Canonical, options:LSFSOptions={}) {
     const {dbName="petit-fs", lazy}=options;
-    const storage=await MultiSyncIDBStorage.create(
+    const raw=await MultiSyncIDBStorage.create<IDBItem>(
       dbName, 
-      {[P_directorify(mountPoint)]:"{}"},
+      {[P_directorify(mountPoint)]:{dirInfo:{}}},
       {lazy});
+    const storage=new SlasyIDBStorage(raw);
     //if (!storage.itemExists(mountPoint)) storage.setItem(mountPoint, "{}");  
     return new LSFS(rootFS, mountPoint, storage, options);
 },{asyncOnMount:true});
-/*function assertAbsolute(path:string):asserts path is Absolute {
-    assert(P.isAbsolutePath(path), path + " is not absolute path");
-}*/
-/*function assertAbsoluteDir(path:string): asserts path is SlasyDir {
-    assertAbsolute(path);
-    assert(P.isDir(path), path + " is not directory path");
-}
-function assertAbsoluteRegular(path:string): asserts path is SlasyReg {
-    assertAbsolute(path);
-    assert(!P.isDir(path), path + " is directory path");
-}*/
 function assertSlasyDir(path:Slasy): asserts path is SlasyDir {
     assert(path.endsWith(SEP), path + " should be a directory path");
 }
@@ -165,12 +155,12 @@ function fixSep(dinfo:DirInfo, name:SlasyBase):SlasyBase {
     return name;
 }
 /*
-CachedStorage(Buffer to write NoCacheStorage, prevent frequent write operation) -> 
-NoCacheStorage(Separate content/dirinfo items) -> 
+CachedStorage(Buffer to write SlasyItemStorage, prevent frequent write operation) -> 
+SlasyItemStorage(Separate content/dirinfo items) -> 
 MultiSyncIDBStorage(Broadcast changes of SyncIDBStorage to workers) -> 
 SyncIDBStorage(The IDB)
 */
-interface CacheableStorage {
+interface SlasyItemStorage {
     getContentItem(regPath:SlasyReg):Content;
     hasContentItem(regPath:SlasyReg):boolean;
     setContentItem(regPath:SlasyReg, c:Content):void;
@@ -180,9 +170,68 @@ interface CacheableStorage {
     hasDirInfoItem(dirPath:SlasyDir):boolean;
     setDirInfoItem(dirPath:SlasyDir, d:DirInfo):void;
     removeDirInfoItem(dirPath:SlasyDir):void;
+
+    waitForCommit():Promise<void>;
 }
-class NoCacheStorage implements CacheableStorage {
-    constructor(public storage:IStorage, public mountPoint:string){}
+type NoCacheSlasyItemStorage=SlasyIDBStorage|SlasyMemoryStorage|SlasyLocalStorage;// extends SlasyItemStorage{}
+class SlasyMemoryStorage implements SlasyItemStorage {
+    storage=new Map<string,NonStringIDBItem>;
+    constructor(){}
+    private getItem(fixedPath:Slasy) {
+        const key = fixedPath;
+        assert(this.itemExists(fixedPath), `file(item) ${key} is not found.`);
+        return this.storage.get(key)!;
+    }
+    private itemExists(fixedPath:Slasy) {
+        const key = fixedPath;
+        return this.storage.has(key);
+    }
+    private setItem(fixedPath:Slasy, value:NonStringIDBItem) {
+        const key = fixedPath;
+        this.storage.set(key, value);
+    }
+    private removeItem(fixedPath:Slasy) {
+        const key = fixedPath;
+        this.storage.delete(key);
+    }
+    getContentItem(regPath: SlasyReg): Content {
+        const cs = this.getItem(regPath);
+        if (isContent(cs)){
+            return Content.deserialize(cs.content);
+        } else {
+            throw new Error("Invalid item data: "+regPath);
+        }    
+    }
+    hasContentItem(regPath: SlasyReg): boolean {
+        return this.itemExists(regPath);
+    }
+    setContentItem(regPath: SlasyReg, c: Content): void {
+        this.setItem(regPath, {content:c.serialize()});
+    }
+    removeContentItem(regPath: SlasyReg): void {
+        this.removeItem(regPath);
+    }
+    getDirInfoItem(dpath: SlasyDir): DirInfo {
+        const item = this.getItem(dpath);
+        if (isContent(item)) {
+            throw new Error(`Invalid data in ${dpath}`);
+        } else {
+            return item.dirInfo;
+        }
+    }
+    hasDirInfoItem(dpath: SlasyDir): boolean {
+        return this.itemExists(dpath);
+    }
+    setDirInfoItem(dpath: SlasyDir, d: DirInfo): void {
+        this.setItem(dpath, {dirInfo:d});
+    }
+    removeDirInfoItem(dpath: SlasyDir): void {
+        return this.removeItem(dpath);
+    }
+    async waitForCommit(): Promise<void> {}
+}
+class SlasyLocalStorage implements SlasyItemStorage{
+    constructor(public storage:Storage, /*public mountPoint:string*/){}
     private getItem(fixedPath:Slasy) {
         //assertAbsolute(fixedPath);
         const key = fixedPath;
@@ -240,9 +289,9 @@ class NoCacheStorage implements CacheableStorage {
     }
     getDirInfoItem(dpath: SlasyDir): DirInfo {
         //assertAbsoluteDir(dpath);
-        const dinfos = this.getItem(dpath);
+        const item = this.getItem(dpath);
         try {
-            return JSON.parse(dinfos);
+            return JSON.parse(item);
         } catch(e) {
             throw new Error(`Malformed JSON found in ${dpath}`);
         }
@@ -260,12 +309,13 @@ class NoCacheStorage implements CacheableStorage {
         return this.removeItem(dpath);
     }
     keys() {
-        return this.storage.keys();
+        return Object.keys(this.storage);//.keys();
     }
-    async reload(key:string) {
+    /*async reload(key:string) {
         return await this.storage.reload(key);
-    }
-    export(path:string|undefined) {
+    }*/
+    async waitForCommit(): Promise<void> {}
+    /*export(path:string|undefined) {
         if (!path) return this.storage;
         const res={} as Record<string,string>;
         for (let k of this.storage.keys()) {
@@ -277,12 +327,93 @@ class NoCacheStorage implements CacheableStorage {
         for (let k in obj) {
             this.storage.setItem(k,obj[k]);
         }
+    }*/
+}
+type IDBItem=string|NonStringIDBItem;
+type NonStringIDBItem={content:SerializedContent}|{dirInfo:DirInfo};
+function isContent(i:IDBItem): i is {content:SerializedContent}{
+    return typeof i==="object" && "content" in i;
+}
+class SlasyIDBStorage implements SlasyItemStorage{
+    constructor(public storage:MultiSyncIDBStorage<IDBItem>, /*public mountPoint:string*/){}
+    private getItem(fixedPath:Slasy) {
+        const key = fixedPath;
+        assert(this.itemExists(fixedPath), `file(item) ${key} is not found.`);
+        return this.storage.getItem(key)!;
     }
+    private itemExists(fixedPath:Slasy) {
+        const key = fixedPath;
+        return this.storage.itemExists(key);
+    }
+    private setItem(fixedPath:Slasy, value:NonStringIDBItem) {
+        const key = fixedPath;
+        this.storage.setItem(key, value);
+    }
+    private removeItem(fixedPath:Slasy) {
+        const key = fixedPath;
+        this.storage.removeItem(key);
+    }
+    getContentItem(regPath: SlasyReg): Content {
+        //assertAbsoluteRegular(regPath);
+        const cs = this.getItem(regPath);
+        if (typeof cs==="string"){
+            if (Content.looksLikeDataURL(cs)) {
+                return Content.url(cs);
+            } else {
+                return Content.plainText(cs);
+            }
+        } else if (isContent(cs)){
+            return Content.deserialize(cs.content);
+        } else {
+            throw new Error("Invalid item data: "+regPath);
+        }
+    }
+    hasContentItem(regPath: SlasyReg): boolean {
+        return this.itemExists(regPath);
+    }
+    setContentItem(regPath: SlasyReg, content: Content): void {
+        this.setItem(regPath, {content:content.serialize()});
+    }
+    removeContentItem(regPath: SlasyReg): void {
+        this.removeItem(regPath);
+    }
+    getDirInfoItem(dpath: SlasyDir): DirInfo {
+        const item = this.getItem(dpath);
+        if (typeof item==="string"){
+            try {
+                return JSON.parse(item);
+            } catch(e) {
+                throw new Error(`Malformed JSON found in ${dpath}`);
+            }
+        } else if (isContent(item)) {
+            throw new Error(`Invalid data in ${dpath}`);
+        } else {
+            return item.dirInfo;
+        }
+    }
+    hasDirInfoItem(dpath: SlasyDir): boolean {
+        return this.itemExists(dpath);
+    }
+    setDirInfoItem(dpath: SlasyDir, dirInfo: DirInfo): void {
+        this.setItem(dpath, {dirInfo});
+    }
+    removeDirInfoItem(dpath: SlasyDir): void {
+        return this.removeItem(dpath);
+    }
+    keys() {
+        return this.storage.keys();
+    }
+    waitForCommit(): Promise<void> {
+        return this.storage.waitForCommit();
+    }
+    /*async reload(key:string) {
+        return await this.storage.reload(key);
+    }*/
 }
 type CacheStatus<T>={value:T}|"deleted";
 (globalThis as any).wakeTimercount=0;
-class CachedStorage implements CacheableStorage {
-    raw: NoCacheStorage;
+class CachedStorage implements SlasyItemStorage {
+    nocache: NoCacheSlasyItemStorage;
     dirInfoCache=new Map<string, CacheStatus<DirInfo>>();
     contentCache=new Map<string, CacheStatus<Content>>();
     htimer:any=undefined;
@@ -308,32 +439,38 @@ class CachedStorage implements CacheableStorage {
         for (let cp of this.reservedContents) {
             const c=this.contentCache.get(cp);
             assert(c!==undefined,`commit content: ${cp} not exists`); 
-            if (c==="deleted") this.raw.removeContentItem(cp);
-            else this.raw.setContentItem(cp, c.value);
+            if (c==="deleted") this.nocache.removeContentItem(cp);
+            else this.nocache.setContentItem(cp, c.value);
         }
         for (let dp of this.reservedDirInfos) {
             const d=this.dirInfoCache.get(dp);
             assert(d!==undefined,`commit dirinfo: ${dp} not exists`); 
-            if (d==="deleted") this.raw.removeDirInfoItem(dp);
-            else this.raw.setDirInfoItem(dp, d.value);
+            if (d==="deleted") this.nocache.removeDirInfoItem(dp);
+            else this.nocache.setDirInfoItem(dp, d.value);
         }
         this.reservedDirInfos=new Set<SlasyDir>();
         this.reservedContents=new Set<SlasyReg>();
         this.htimer=undefined;
-        this.raw.storage.waitForCommit().then(()=>{
+        this.waitForCommit().then(()=>{
             if (!this.htimer) {
                 this._commitPromise.resolve();
                 this._commitPromise=new MutablePromise();
             }
         });
     }
+    waitForCommit(): Promise<void> {
+        return this.nocache.waitForCommit();
+    }
     private reservedDirInfos=new Set<SlasyDir>();
     private reservedContents=new Set<SlasyReg>();
-    constructor(public storage:IStorage, public mountPoint:Canonical){
-        this.raw=new NoCacheStorage(storage, mountPoint);
-        if (storage instanceof MultiSyncIDBStorage) {
+    get raw(){
+        return this.nocache.storage;
+    }
+    constructor(nocache:NoCacheSlasyItemStorage, public mountPoint:Canonical){
+        this.nocache=nocache;//new NoCacheStorage(storage, mountPoint);
+        if (nocache instanceof SlasyIDBStorage) {
             /* storage.addEventListener may occurs in arbitrary order, See also constructor of LSFS  */
-            storage.addEventListener("change", ({key})=>{
+            nocache.storage.addEventListener("change", ({key})=>{
                 if (key.endsWith("/")) {
                     this.reservedDirInfos.delete(key as SlasyDir);
                     this.dirInfoCache.delete(key as SlasyDir);
@@ -348,7 +485,7 @@ class CachedStorage implements CacheableStorage {
         const c=this.contentCache.get(regPath);
         assert(c!=="deleted",`getContentItem: ${regPath} is deleted.`); 
         if (c) return c.value;
-        const rawc=this.raw.getContentItem(regPath);
+        const rawc=this.nocache.getContentItem(regPath);
         this.contentCache.set(regPath, {value:rawc});
         return rawc;
     }
@@ -357,7 +494,7 @@ class CachedStorage implements CacheableStorage {
         const c=this.contentCache.get(regPath);
         if (c==="deleted") return false;
         if (c) return true;
-        return this.raw.hasContentItem(regPath);
+        return this.nocache.hasContentItem(regPath);
     }
     setContentItem(regPath: SlasyReg, c: Content): void {
         //assertAbsoluteRegular(regPath);
@@ -380,7 +517,7 @@ class CachedStorage implements CacheableStorage {
         const d=this.dirInfoCache.get(dpath);
         assert(d!=="deleted",`getContentItem: ${dpath} is deleted.`); 
         if (d) return d.value;
-        const rawd=this.raw.getDirInfoItem(dpath);
+        const rawd=this.nocache.getDirInfoItem(dpath);
         this.dirInfoCache.set(dpath,{value: rawd});
         return rawd;
     }
@@ -389,7 +526,7 @@ class CachedStorage implements CacheableStorage {
         const d=this.dirInfoCache.get(dpath);
         if (d==="deleted") return false;
         if (d) return true;
-        return this.raw.hasDirInfoItem(dpath);
+        return this.nocache.hasDirInfoItem(dpath);
     }
     setDirInfoItem(dpath: SlasyDir, d: DirInfo): void {
         //assertAbsoluteDir(dpath);
@@ -409,7 +546,7 @@ class CachedStorage implements CacheableStorage {
         this.reservedDirInfos.add(dpath);
         this.wakeTimer();
     }    
-    export(path:string|undefined) {
+    /*export(path:string|undefined) {
         this.commit();
         return this.raw.export(path);
     }
@@ -419,7 +556,7 @@ class CachedStorage implements CacheableStorage {
     }
     async reload(key:string) {
         return await this.raw.reload(key);
-    }
+    }*/
 }
 export class LSFS implements IFileSystem {
     //dirCache:{[key:string]:DirInfo}={};
@@ -435,19 +572,19 @@ export class LSFS implements IFileSystem {
     getRootFS(){return this.rootFS;}
     onAddObserver(path: string):undefined {
     }
-    get storage(){return this.cachedStorage.storage;}
-    constructor(public rootFS:IRootFS, public mountPoint: Canonical, /*public*/ storage:IStorage, {readOnly}:LSFSOptions={}) {
-        assert(storage, " new LSFS fail: no storage");
+    get storage(){return this.cachedStorage.raw;}
+    get raw(){return this.cachedStorage.raw;}
+    constructor(public rootFS:IRootFS, public mountPoint: Canonical, /*public*/ nocache:NoCacheSlasyItemStorage, {readOnly}:LSFSOptions={}) {
         if (mountPoint!=="/" && mountPoint.endsWith(SEP)){
             throw new Error("Invalid mount point "+mountPoint);
         }
         //super(rootFS, mountPoint);
         //if (!storage.itemExists(mountPoint)) storage.setItem(mountPoint,"{}");
         this.readOnly=!!readOnly;
-        this.cachedStorage=new CachedStorage(storage, mountPoint);
-        if (storage instanceof MultiSyncIDBStorage) {
+        this.cachedStorage=new CachedStorage(nocache, mountPoint);
+        if (nocache instanceof SlasyIDBStorage) {
             /* storage.addEventListener may occurs in arbitrary order, See also constructor of CachedStorage  */
-            storage.addEventListener("change",({key,value})=>setTimeout(()=>{
+            nocache.storage.addEventListener("change",({key,value})=>setTimeout(()=>{
                 // so setTimeout is used, it ensures occur after handler in constructor of CachedStorage
                 const c_key=toCanonicalPath(key);
                 //console.log("Storage change",key,c_key);
@@ -482,8 +619,8 @@ export class LSFS implements IFileSystem {
         };
     }
     static ramDisk(rootFS:IRootFS, mountPoint:Canonical, options:LSFSOptions={readOnly:false}) {
-        const s:IStorage = new MemoryStorage({});
-        s.setItem(P_directorify(mountPoint), "{}");
+        const s=new SlasyMemoryStorage();
+        s.setDirInfoItem(P_directorify(mountPoint), {});
         options = options || {};
         return new LSFS(rootFS, toCanonicalPath(mountPoint), s , options);
     }
@@ -545,7 +682,7 @@ export class LSFS implements IFileSystem {
         }
     }
     private isRAM() {
-        return this.storage instanceof MemoryStorage;
+        return this.cachedStorage instanceof SlasyMemoryStorage;
     }
     /* `parent` should be parent of `path`     */
     private fixPath(path:string, parent:SlasyDir):[DirInfo, Slasy, SlasyBase] {
@@ -848,12 +985,12 @@ export class LSFS implements IFileSystem {
             }
         }
     }
-    export(path:string|undefined) {
+    /*export(path:string|undefined) {
         return this.cachedStorage.export(path);
     }
     import(obj:Record<string,string>) {
         return this.cachedStorage.import(obj);  
-    }
+    }*/
 }
 export default LSFS;
 

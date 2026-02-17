@@ -241,7 +241,7 @@ class SlasyLocalStorage implements SlasyItemStorage{
     private itemExists(fixedPath:Slasy) {
         //assertAbsolute(fixedPath);
         const key = fixedPath;
-        return this.storage.itemExists(key);
+        return key in this.storage;
     }
     private setItem(fixedPath:Slasy, value:string) {
         //assertAbsolute(fixedPath);

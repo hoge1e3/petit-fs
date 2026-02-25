@@ -5,13 +5,12 @@ import {Content, SerializedContent} from "@hoge1e3/content";
 import {ok} from "@hoge1e3/assert";
 import RootFS from "./RootFS.js";
 //import { LocalStorageWrapper, MemoryStorage} from "./StorageWrapper.js";
-import { IStorage, SyncIDBStorage } from "sync-idb-kvs";
 import { MultiSyncIDBStorage } from "sync-idb-kvs-multi";
 import MutablePromise from "mutable-promise";
 import { createEEXIST, createEISDIR, createENOENT, createIOError } from "../errors.js";
-import { BaseName, Canonical } from "../types.js";
+import { BaseName, Canonical} from "../types.js";
 import { basename, toCanonicalPath, up} from "../pathUtil2.js";
-import { Dirent, IFileSystem, IRootFS, ObserverEvent, Stats } from "./types.js";
+import { Dirent,  IFileSystem, IRootFS, LSFSOptions, ObserverEvent, Stats } from "./types.js";
 //const isDir = P.isDir.bind(P);
 const assert:(value:any, message?:string)=>asserts value=ok;
 //const up = P.up.bind(P);
@@ -102,13 +101,6 @@ export type MetaInfo={
     lastUpdate:number,
     link?: string,
     trashed?: boolean,
-};
-export type LSFSOptions={
-    readOnly?:boolean,
-    // For IDB
-    dbName?: string, 
-    lazy?:0|1|2,
-    //storeName?: string,
 };
 const symsl=Symbol("Slasy");//  SHOULD contain trailing slash for directory
 const symsl_dir=Symbol("Slasy_dir");

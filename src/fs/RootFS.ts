@@ -1,13 +1,11 @@
 //@ts-check
-import PathUtil from "./PathUtil.js";
 //import P from "./PathUtil.js";
 /**
  * @typedef FileSystem {import("./FSClass").FileSystem}
  */
-import { LSFSOptions } from "./LSFS";
-import { basename, toCanonicalPath,up } from "../pathUtil2.js";
-import { Canonical } from "../types.js";
-import { AsyncFSType, FSFactory, FSType, FSTypeName, FSTypeOptions, IFileSystem, IRootFS, Observer, ObserverEvent, ObserverHandler } from "./types.js";
+import { toCanonicalPath,up } from "../pathUtil2.js";
+import { Canonical, Fstab} from "../types.js";
+import { LSFSOptions,AsyncFSType, FSFactory, FSType, FSTypeName, FSTypeOptions, IFileSystem, IRootFS, Observer, ObserverEvent, ObserverHandler } from "./types.js";
 //export type Stats=import("node:fs").Stats;
 //export type ObserverEvent={eventType:"change"|"rename"} & Stats;
 //export type FSTab={fs:FileSystem, mountPoint:string};
@@ -33,28 +31,44 @@ export default class RootFS implements IRootFS{
     static availFSTypes() {
         return RootFS.fstypes;
     }
+    fstabMap=new WeakMap<IFileSystem, Fstab>();
     _fstab:IFileSystem[]=[];
     observers: Observer[]=[];
     /*err(path:string, mesg:string) {
         throw new Error(path + ": " + mesg);
     },*/
     // mounting
+    /** 
+     @deprecated use df() instead 
+    */
     fstab() {
         this._fstab = this._fstab || [];//[{fs:this, path:P.SEP}];
         return this._fstab;
     }
+    df() {
+        this._fstab = this._fstab || [];//[{fs:this, path:P.SEP}];
+        return this._fstab;
+    }
+    currentFstab():Fstab[]{
+        const res=[] as Fstab[];
+        for (let d of this.df()) {
+            const t=this.fstabMap.get(d);
+            if (t) res.push(t);
+        }
+        return res;
+    }
     hasUncommited() {
-        for (let fs of this.fstab()) {
+        for (let fs of this.df()) {
             if (fs.hasUncommited()) return true;
         }
         return false;
     }
     commitPromise() {
-        return Promise.all(this.fstab().map(fs=>fs.commitPromise()));
+        return Promise.all(this.df().map(fs=>fs.commitPromise()));
     }
     unmount(_path:string) {
         const path=toCanonicalPath(_path);
-        var t = this.fstab();
+        var t = this.df();
         console.log(t);
         for (var i = 0; i < t.length; i++) {
             if (t[i].mountPoint == path) {
@@ -64,30 +78,32 @@ export default class RootFS implements IRootFS{
         }
         return false;
     }
-    mount(mountPoint:string, _fs:IFileSystem|FSTypeName, options?:LSFSOptions) {
-        let fs: IFileSystem;
-        if (typeof _fs == "string") {
-            const fst = RootFS.availFSTypes()[_fs];
-            if (!fst) throw new Error(`FS type ${_fs} not found`);
-            if (isAsyncFSType(fst)) {
-                throw new Error(`The FS type '${_fs}' requires async mount. Use mountAsync instead.`);
-            }
-            fs = fst.factory(this, toCanonicalPath(mountPoint), options || {});
-        } else {
-            fs = _fs;
+    mount(mountPoint:string, _fs:FSTypeName, options?:LSFSOptions) {
+        const fst = RootFS.availFSTypes()[_fs];
+        if (!fst) throw new Error(`FS type ${_fs} not found`);
+        if (isAsyncFSType(fst)) {
+            throw new Error(`The FS type '${_fs}' requires async mount. Use mountAsync instead.`);
         }
-        this.fstab().unshift(fs);
+        const fs = fst.factory(this, toCanonicalPath(mountPoint), options || {});
+        const fstab:Fstab={mountPoint, fsType:_fs, options};
+        this.bindFstab(fs,fstab);
+        this.df().unshift(fs);
         return fs;
     }
     async mountAsync(mountPoint:string, _fs:FSTypeName, options?:LSFSOptions) {
         const fst = RootFS.availFSTypes()[_fs];
         if (!fst) throw new Error(`FS type ${_fs} not found`);
         const fs = await fst.factory(this, toCanonicalPath(mountPoint), options || {});
-        this.fstab().unshift(fs);
+        const fstab:Fstab={mountPoint, fsType:_fs, options};
+        this.bindFstab(fs,fstab);
+        this.df().unshift(fs);
         return fs;
     }
+    bindFstab(fs:IFileSystem, arg:Fstab) {
+        this.fstabMap.set(fs,arg);
+    }
     resolveFS(path:string):IFileSystem {
-        const f=this.fstab();
+        const f=this.df();
         for (let p:Canonical|null=toCanonicalPath(path); p; p=up(p)) {
             const found=f.find(e=>
                 e.mountPoint===p);

@@ -1,6 +1,5 @@
 import { Content } from "@hoge1e3/content";
-import { BaseName, Canonical } from "../types";
-import { LSFSOptions } from "./LSFS";
+import { BaseName, Canonical} from "../types";
 export type Stats=import("node:fs").Stats;
 //export type ObserverEvent={eventType:"change"|"rename"} & Stats;
 //export type FSTab={fs:FileSystem, mountPoint:string};
@@ -133,3 +132,11 @@ export interface Walker{
     trashed?: boolean,
 };*/
 
+
+export type LSFSOptions={
+    readOnly?:boolean,
+    // For IDB
+    dbName?: string, 
+    lazy?:0|1|2,
+    //storeName?: string,
+};

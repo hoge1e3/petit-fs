@@ -418,11 +418,11 @@ export class FileSystem {
         return fs.exists(ppath);
     }
     isMountPoint(path:Canonical):IFileSystem|undefined{
-        return this.getRootFS().fstab().find((f)=>(f.mountPoint||"/")===path);
+        return this.getRootFS().df().find((f)=>(f.mountPoint||"/")===path);
     }
     childrenOfMountPoint(path:Canonical):IFileSystem[] {
         // this=/mnt/  ,  returns  ["/mnt/fd", "/mnt/cdrom"] ... etc. just a example.
-        return this.getRootFS().fstab().filter(
+        return this.getRootFS().df().filter(
             (f)=>f.mountPoint && up(f.mountPoint)===path);
     }
     /**
@@ -967,7 +967,7 @@ export class DeviceManager{
      * @param mountPoint The path in this virtual file system.
      * @param resolver An object used to resolve files in `source`.
      */
-    public mountSync(mountPoint: string, resolver: IFileSystem|FSTypeName, options:any={}): IFileSystem {
+    public mountSync(mountPoint: string, resolver: FSTypeName, options:any={}): IFileSystem {
         const rfs=getRootFS();
         mountPoint=directorify(mountPoint);
         const fs=rfs.mount(mountPoint, resolver,options);
@@ -990,7 +990,10 @@ export class DeviceManager{
     }
     public df() {
         const rfs=getRootFS();
-        return rfs.fstab();
+        return rfs.df();
+    }
+    public currentFstab(){
+        return getRootFS().currentFstab();
     }
     public commitPromise(){
         const rfs=getRootFS();

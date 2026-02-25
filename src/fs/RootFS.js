@@ -1,3 +1,8 @@
+//@ts-check
+//import P from "./PathUtil.js";
+/**
+ * @typedef FileSystem {import("./FSClass").FileSystem}
+ */
 import { toCanonicalPath, up } from "../pathUtil2.js";
 //export type Stats=import("node:fs").Stats;
 //export type ObserverEvent={eventType:"change"|"rename"} & Stats;
@@ -18,6 +23,7 @@ function isAsyncFSType(s) {
 }
 class RootFS {
     constructor() {
+        this.fstabMap = new WeakMap();
         this._fstab = [];
         this.observers = [];
     }
@@ -31,23 +37,39 @@ class RootFS {
         throw new Error(path + ": " + mesg);
     },*/
     // mounting
+    /**
+     @deprecated use df() instead
+    */
     fstab() {
         this._fstab = this._fstab || []; //[{fs:this, path:P.SEP}];
         return this._fstab;
     }
+    df() {
+        this._fstab = this._fstab || []; //[{fs:this, path:P.SEP}];
+        return this._fstab;
+    }
+    currentFstab() {
+        const res = [];
+        for (let d of this.df()) {
+            const t = this.fstabMap.get(d);
+            if (t)
+                res.push(t);
+        }
+        return res;
+    }
     hasUncommited() {
-        for (let fs of this.fstab()) {
+        for (let fs of this.df()) {
             if (fs.hasUncommited())
                 return true;
         }
         return false;
     }
     commitPromise() {
-        return Promise.all(this.fstab().map(fs => fs.commitPromise()));
+        return Promise.all(this.df().map(fs => fs.commitPromise()));
     }
     unmount(_path) {
         const path = toCanonicalPath(_path);
-        var t = this.fstab();
+        var t = this.df();
         console.log(t);
         for (var i = 0; i < t.length; i++) {
             if (t[i].mountPoint == path) {
@@ -58,20 +80,16 @@ class RootFS {
         return false;
     }
     mount(mountPoint, _fs, options) {
-        let fs;
-        if (typeof _fs == "string") {
-            const fst = RootFS.availFSTypes()[_fs];
-            if (!fst)
-                throw new Error(`FS type ${_fs} not found`);
-            if (isAsyncFSType(fst)) {
-                throw new Error(`The FS type '${_fs}' requires async mount. Use mountAsync instead.`);
-            }
-            fs = fst.factory(this, toCanonicalPath(mountPoint), options || {});
+        const fst = RootFS.availFSTypes()[_fs];
+        if (!fst)
+            throw new Error(`FS type ${_fs} not found`);
+        if (isAsyncFSType(fst)) {
+            throw new Error(`The FS type '${_fs}' requires async mount. Use mountAsync instead.`);
         }
-        else {
-            fs = _fs;
-        }
-        this.fstab().unshift(fs);
+        const fs = fst.factory(this, toCanonicalPath(mountPoint), options || {});
+        const fstab = { mountPoint, fsType: _fs, options };
+        this.bindFstab(fs, fstab);
+        this.df().unshift(fs);
         return fs;
     }
     async mountAsync(mountPoint, _fs, options) {
@@ -79,11 +97,16 @@ class RootFS {
         if (!fst)
             throw new Error(`FS type ${_fs} not found`);
         const fs = await fst.factory(this, toCanonicalPath(mountPoint), options || {});
-        this.fstab().unshift(fs);
+        const fstab = { mountPoint, fsType: _fs, options };
+        this.bindFstab(fs, fstab);
+        this.df().unshift(fs);
         return fs;
     }
+    bindFstab(fs, arg) {
+        this.fstabMap.set(fs, arg);
+    }
     resolveFS(path) {
-        const f = this.fstab();
+        const f = this.df();
         for (let p = toCanonicalPath(path); p; p = up(p)) {
             const found = f.find(e => e.mountPoint === p);
             if (found)

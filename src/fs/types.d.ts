@@ -12,8 +12,9 @@ export type Observer={
     remove():void, 
 };
 export type ObserverEvent=(
+    {eventType:"change"|"rename"})/*
     {eventType:"create"|"change"|"rename"} & Stats|
-    {eventType:"delete"} );
+    {eventType:"delete"} )*/;
 
 export class IRootFS {
     fstab(): IFileSystem[];

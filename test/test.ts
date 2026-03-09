@@ -557,7 +557,7 @@ async function checkWatch(testd:SFile) {
     const buf = [] as string[];
     //const isN = NativeFS.available && testd.getFS() instanceof NativeFS;
     //_console.log("isN",isN);
-    const isN=false
+    const isN=true;
     const w = testd.watch((type, f) => {
         buf.push(type + ":" + f.relPath(testd));
     });

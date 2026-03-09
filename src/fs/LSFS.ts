@@ -581,7 +581,7 @@ export class LSFS implements IFileSystem {
                 const c_key=toCanonicalPath(key);
                 //console.log("Storage change",key,c_key);
                 if (!this.exists(c_key)) {
-                    this.rootFS.notifyChanged(c_key, {eventType:"delete"});   
+                    this.rootFS.notifyChanged(c_key, {eventType:"rename"});   
                 } else {
                     const stat=this.lstat(c_key); // do not use ...spread, it also spreads size, that may be non-existent(* current implementation gets size from content)
                     // Why may be non-existent? -> metaInfo and content may not match when many change events were sent via BroadcastChannel. 
@@ -629,10 +629,13 @@ export class LSFS implements IFileSystem {
         return this.cachedStorage.getDirInfoItem(dpath);
     }
     // called from _touch, removeEntry(rm), setMetaInfo(link, setMtime)
-    private putDirInfo(dpath:SlasyDir, dinfo:DirInfo, removed:boolean) {
+    private putDirInfo(dpath:SlasyDir, dinfo:DirInfo/*, removed:boolean*/) {
         //assertAbsoluteDir(dpath);
+        this.cachedStorage.setDirInfoItem(dpath, dinfo);
+        return; 
+        /*
         const ppath = P_up(dpath);
-        if (!ppath || /*!this.inMyFS(ppath)*/ dpath===this.mountPoint+SEP) {
+        if (!ppath || dpath===this.mountPoint+SEP) {
             this.cachedStorage.setDirInfoItem(dpath, dinfo);
             return; 
         }
@@ -643,38 +646,38 @@ export class LSFS implements IFileSystem {
         }
         const pdinfo = this.cachedStorage.getDirInfoItem(ppath);
         this.cachedStorage.setDirInfoItem(dpath, dinfo);
-        this._touch(pdinfo, ppath, P_name(dpath), removed);
+        this._touch(pdinfo, ppath, P_name(dpath), removed);*/
     }
     // called from touch, mkdir, putDirInfo
     // _touch may create directory 
     // `dinfo` should be DirInfo of `dpath`
-    private _touch(dinfo:DirInfo, dpath:SlasyDir, base:SlasyBase, removed:boolean) {
+    private _touch(dinfo:DirInfo, dpath:SlasyDir, base:SlasyBase) {
         //assertAbsoluteDir(dpath);
         // removed: this touch is caused by removing the file/dir.
-        let evt:ObserverEvent;
-        if (removed) {
-            evt={eventType:"delete"};
-        } else {
-            let eventType:"change"|"create"|"rename"|"delete" = "change";            
+        //let evt:ObserverEvent;
+        //if (removed) {
+            //evt={eventType:"delete"};
+        //} else {
+            let eventType:"change"|"rename" = "change";            
             if (!dinfo[base]) {
                 dinfo[base] = {lastUpdate: now()};
-                eventType="create";
+                eventType="rename";
             } else {
                 dinfo[base].lastUpdate = now();
                 delete dinfo[base].trashed;
             }
-            evt={ eventType,  ...meta2stat(dinfo[base], P_isDirSlasyBase(base), ()=>1/*TODO*/)};
-        }
-        this.getRootFS().notifyChanged( toCanonicalPath(P_rel(dpath, base)), evt);
-        this.putDirInfo(dpath, dinfo, removed);
+            //evt={ eventType,  ...meta2stat(dinfo[base], P_isDirSlasyBase(base), ()=>1/*TODO*/)};
+        //}
+        this.getRootFS().notifyChanged( toCanonicalPath(P_rel(dpath, base)), {eventType});
+        this.putDirInfo(dpath, dinfo);
     }
     // called from rm
     private removeEntry(dinfo:DirInfo, dpath:SlasyDir, fixedName:SlasyBase) {
         //assertAbsoluteDir(dpath);
         if (dinfo[fixedName]) {
             delete dinfo[fixedName];
-            this.getRootFS().notifyChanged( toCanonicalPath(P_rel(dpath, fixedName)), { eventType: "delete" });
-            this.putDirInfo(dpath, dinfo, true);
+            this.getRootFS().notifyChanged( toCanonicalPath(P_rel(dpath, fixedName)), { eventType: "rename" });
+            this.putDirInfo(dpath, dinfo);
         }
     }
     private isRAM() {
@@ -779,7 +782,8 @@ export class LSFS implements IFileSystem {
         }
         const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
         pinfo[fixedName] = info;
-        this.putDirInfo(parent, pinfo, false);
+        this.getRootFS().notifyChanged(path, {eventType:"change"});
+        this.putDirInfo(parent, pinfo);
         // fails on symlink
         // assert(this.itemExists(fixedPath), `setMetaInfo: item ${fixedPath} not found`);
     }
@@ -798,7 +802,7 @@ export class LSFS implements IFileSystem {
         if (!parent) throw new Error(`mkdir:Invalid path state ${path}`);
         const pinfo=this.getDirInfo(parent);
         //assert(this.inMyFS(parent));        
-        this._touch(pinfo, parent, P_name(fixedPath), false);
+        this._touch(pinfo, parent, P_name(fixedPath));
     }
     public opendir(path:Canonical):BaseName[] {
         //succ: iterator<string> // next()
@@ -921,7 +925,7 @@ export class LSFS implements IFileSystem {
                 this.cachedStorage.setContentItem(fixedPath, Content.plainText(""));
             }
         }
-        this._touch(pinfo, parent, fixedName, false);
+        this._touch(pinfo, parent, fixedName);
      }
     /*getURL(path:string) {
         return this.getContent(path).toURL();

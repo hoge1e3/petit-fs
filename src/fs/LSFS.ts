@@ -628,6 +628,7 @@ export class LSFS implements IFileSystem {
         //assertAbsoluteDir(dpath);
         return this.cachedStorage.getDirInfoItem(dpath);
     }
+    // called from _touch, removeEntry(rm), setMetaInfo(link, setMtime)
     private putDirInfo(dpath:SlasyDir, dinfo:DirInfo, removed:boolean) {
         //assertAbsoluteDir(dpath);
         const ppath = P_up(dpath);
@@ -635,6 +636,7 @@ export class LSFS implements IFileSystem {
             this.cachedStorage.setDirInfoItem(dpath, dinfo);
             return; 
         }
+        // TODO: abolish below? and send event only? (also above case?) 
         if (!this.cachedStorage.hasDirInfoItem(ppath)) {
             // TODO throw retriable Error? or hasDirInfoItem itself throw it?
             throw createIOError("ENOENT",`File(item) ${ppath} not exists.`);
@@ -643,9 +645,10 @@ export class LSFS implements IFileSystem {
         this.cachedStorage.setDirInfoItem(dpath, dinfo);
         this._touch(pdinfo, ppath, P_name(dpath), removed);
     }
+    // called from touch, mkdir, putDirInfo
     // _touch may create directory 
     // `dinfo` should be DirInfo of `dpath`
-    private _touch(dinfo:DirInfo, dpath:SlasyDir, fixedName:SlasyBase, removed:boolean) {
+    private _touch(dinfo:DirInfo, dpath:SlasyDir, base:SlasyBase, removed:boolean) {
         //assertAbsoluteDir(dpath);
         // removed: this touch is caused by removing the file/dir.
         let evt:ObserverEvent;
@@ -653,18 +656,19 @@ export class LSFS implements IFileSystem {
             evt={eventType:"delete"};
         } else {
             let eventType:"change"|"create"|"rename"|"delete" = "change";            
-            if (!dinfo[fixedName]) {
-                dinfo[fixedName] = {lastUpdate: now()};
+            if (!dinfo[base]) {
+                dinfo[base] = {lastUpdate: now()};
                 eventType="create";
             } else {
-                dinfo[fixedName].lastUpdate = now();
-                delete dinfo[fixedName].trashed;
+                dinfo[base].lastUpdate = now();
+                delete dinfo[base].trashed;
             }
-            evt={ eventType,  ...meta2stat(dinfo[fixedName], P_isDirSlasyBase(fixedName), ()=>1/*TODO*/)};
+            evt={ eventType,  ...meta2stat(dinfo[base], P_isDirSlasyBase(base), ()=>1/*TODO*/)};
         }
-        this.getRootFS().notifyChanged( toCanonicalPath(P_rel(dpath, fixedName)), evt);
+        this.getRootFS().notifyChanged( toCanonicalPath(P_rel(dpath, base)), evt);
         this.putDirInfo(dpath, dinfo, removed);
     }
+    // called from rm
     private removeEntry(dinfo:DirInfo, dpath:SlasyDir, fixedName:SlasyBase) {
         //assertAbsoluteDir(dpath);
         if (dinfo[fixedName]) {
@@ -766,6 +770,7 @@ export class LSFS implements IFileSystem {
         this.assertExist(path);
         return this.setMetaInfo(path,{lastUpdate:time});
     }
+    // called from link, setMtime
     private setMetaInfo(path:Canonical, info:MetaInfo) {
         this.assertWriteable(path);
         const parent = P_up(path);

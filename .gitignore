@@ -34,3 +34,5 @@ src/types.js.map
 src/errors.d.ts
 src/errors.js
 src/errors.js.map
+src/fs/RootFS.js
+src/fs/RootFS.js.map

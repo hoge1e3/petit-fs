@@ -583,11 +583,11 @@ export class LSFS implements IFileSystem {
                 if (!this.exists(c_key)) {
                     this.rootFS.notifyChanged(c_key, {eventType:"rename"});   
                 } else {
-                    const stat=this.lstat(c_key); // do not use ...spread, it also spreads size, that may be non-existent(* current implementation gets size from content)
+                    //const stat=this.lstat(c_key); // do not use ...spread, it also spreads size, that may be non-existent(* current implementation gets size from content)
                     // Why may be non-existent? -> metaInfo and content may not match when many change events were sent via BroadcastChannel. 
-                    const statany=stat as any;
-                    statany.eventType="change";
-                    this.rootFS.notifyChanged(c_key, statany); 
+                    //const statany=stat as any;
+                    //statany.eventType="change";
+                    this.rootFS.notifyChanged(c_key, {eventType:"change"}); 
                 }
             },100));
         }
@@ -629,9 +629,12 @@ export class LSFS implements IFileSystem {
         return this.cachedStorage.getDirInfoItem(dpath);
     }
     // called from _touch, removeEntry(rm), setMetaInfo(link, setMtime)
-    private putDirInfo(dpath:SlasyDir, dinfo:DirInfo/*, removed:boolean*/) {
+    // changed should be key(or key in past) of dinfo
+    private putDirInfo(dpath:SlasyDir, dinfo:DirInfo, changed: SlasyBase, eventType:"change"|"rename"/*, removed:boolean*/) {
         //assertAbsoluteDir(dpath);
         this.cachedStorage.setDirInfoItem(dpath, dinfo);
+        //const eventType=Object.hasOwn(dinfo, changed) ? "change" : "rename";
+        this.getRootFS().notifyChanged( toCanonicalPath(P_rel(dpath, changed)), {eventType});
         return; 
         /*
         const ppath = P_up(dpath);
@@ -668,16 +671,16 @@ export class LSFS implements IFileSystem {
             }
             //evt={ eventType,  ...meta2stat(dinfo[base], P_isDirSlasyBase(base), ()=>1/*TODO*/)};
         //}
-        this.getRootFS().notifyChanged( toCanonicalPath(P_rel(dpath, base)), {eventType});
-        this.putDirInfo(dpath, dinfo);
+        //this.getRootFS().notifyChanged( toCanonicalPath(P_rel(dpath, base)), {eventType});
+        this.putDirInfo(dpath, dinfo, base, eventType);
     }
     // called from rm
     private removeEntry(dinfo:DirInfo, dpath:SlasyDir, fixedName:SlasyBase) {
         //assertAbsoluteDir(dpath);
         if (dinfo[fixedName]) {
             delete dinfo[fixedName];
-            this.getRootFS().notifyChanged( toCanonicalPath(P_rel(dpath, fixedName)), { eventType: "rename" });
-            this.putDirInfo(dpath, dinfo);
+            //this.getRootFS().notifyChanged( toCanonicalPath(P_rel(dpath, fixedName)), { eventType: "rename" });
+            this.putDirInfo(dpath, dinfo, fixedName, "rename");
         }
     }
     private isRAM() {
@@ -781,9 +784,10 @@ export class LSFS implements IFileSystem {
             return;
         }
         const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
+        const eventType=Object.hasOwn(pinfo,fixedName)?"change":"rename";
         pinfo[fixedName] = info;
-        this.getRootFS().notifyChanged(path, {eventType:"change"});
-        this.putDirInfo(parent, pinfo);
+        //this.getRootFS().notifyChanged(path, {eventType:"change"});
+        this.putDirInfo(parent, pinfo, fixedName, eventType);
         // fails on symlink
         // assert(this.itemExists(fixedPath), `setMetaInfo: item ${fixedPath} not found`);
     }

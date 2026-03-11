@@ -1,10 +1,12 @@
 import {assert as _assert} from "chai";
 /*import * as fs from "fs";
 import * as path from "path";*/
-import {fs,dev,path} from "../src/index.js";
+import {fs,dev,path, LSFS} from "../src/index.js";
 import { Buffer } from "buffer";
 import * as zip from "jszip";
 import {FileSystemFactory,SFile,Content, DirectoryOptions, DirTree, MetaInfo, ExcludeOption, ExcludeHash, getNodeFS} from "@hoge1e3/sfile";
+import RootFS from "../src/fs/RootFS.js";
+import { toCanonicalPath } from "../src/pathUtil2.js";
 const assert = Object.assign(
     (b:any, m?:string)=>_assert.ok(b,m),{
     eq:_assert.equal,   
@@ -259,6 +261,7 @@ try {
         await moveTest(testdir);
         //setTimeout(function () {location.reload();},10000);
         await asyncTest(testdir);
+        await testFineMtime(fs.getRootFS(),FS);
 
     } else {
         try {
@@ -836,6 +839,28 @@ async function testIDB(pass:number, fixture:SFile, idbdir:SFile) {
         for (let f of idbdir.listFiles()) f.rm({r:true});
     }
 } 
+async function testFineMtime(dev:RootFS, FS:FileSystemFactory) {
+    for (let fs of dev.df()) {
+        if (fs.fstype()==="idb") {
+            const lsfs=fs as LSFS;
+            const mpf=FS.get(fs.mountPoint);
+            for (let e of mpf.listFiles()) {
+                const nmt=naiveMtime(e);
+                const fmt=await lsfs.setFineMtime(toCanonicalPath(e.path()));
+                console.log("testFineMtime",fmt, nmt, e.path())
+                assert.eq(fmt, nmt, e.path());
+            }
+        }
+    }
+    function naiveMtime(dir:SFile):number {
+        let max=0;
+        for (let f of dir.listFiles()) {
+            const mt=(f.isDir()? naiveMtime(f) : f.lastUpdate());
+            if (mt>max) max=mt;
+        }
+        return max;
+    }
+}
 }// of main()
 //(globalThis as any).main=main;
 main();

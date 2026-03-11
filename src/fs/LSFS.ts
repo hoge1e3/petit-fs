@@ -47,7 +47,7 @@ function P_isDirSlasyBase(p:SlasyBase) {
     return p.endsWith(SEP);
 }
 const SEP = "/";
-type StatsEx= Stats & {linkPath:string|undefined};
+type StatsEx= Stats & {linkPath:string|undefined, hasFineMtime:boolean};
 function now() {
     return new Date().getTime();
 }
@@ -60,9 +60,10 @@ let devCount = 0; // A monotonically increasing count of device ids
 let inoCount = 0; // A monotonically increasing count of inodes
 
 function meta2stat(m:MetaInfo, isDir: boolean, sizeF: ()=>number):StatsEx {
-    const timeMs=m.lastUpdate;
+    const timeMs=m.f_mtime ?? m.lastUpdate;
     const time=new Date(timeMs);
     return {
+        hasFineMtime: !isDir || m.f_mtime!=null,
         linkPath: m.link,
         atime: dummyATime,
         atimeMs: dummyATimeMs,
@@ -629,17 +630,17 @@ export class LSFS implements IFileSystem {
         //assertAbsoluteDir(dpath);
         return this.cachedStorage.getDirInfoItem(dpath);
     }
-    public async setFineMtime(_dpath:Canonical):Promise<number|null> {
+    public async setFineMtime(_dpath:Canonical, rebuild=false):Promise<number|null> {
         if (_dpath===this.mountPoint) return null;
         const ppath=P_up(_dpath)!;
         const [pinfo, dpath, base]=this.fixPath(_dpath, ppath); 
         if (!P_isDir(dpath)) return pinfo[base].lastUpdate;
-        if (pinfo[base].f_mtime!=null) return pinfo[base].f_mtime;
+        if (!rebuild && pinfo[base].f_mtime!=null) return pinfo[base].f_mtime;
         let dinfo=this.getDirInfo(dpath);
         await Promise.all(
             Object.keys(dinfo).map(
                 k=>this.setFineMtime(
-                    toCanonicalPath(P_rel(dpath,k as SlasyBase))))
+                    toCanonicalPath(P_rel(dpath,k as SlasyBase)),rebuild))
         );
         dinfo=this.getDirInfo(dpath);
         let max=null as null|number;
@@ -648,7 +649,7 @@ export class LSFS implements IFileSystem {
             const e=dinfo[k];
             if (k.endsWith("/")) {
                 if (e.f_mtime!=null) {
-                    if (max==null || max>e.f_mtime) max=e.f_mtime;
+                    if (max==null || e.f_mtime>max) max=e.f_mtime;
                 } else {
                     max=null;
                     break;

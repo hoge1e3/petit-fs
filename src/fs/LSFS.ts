@@ -101,6 +101,7 @@ export type MetaInfo={
     lastUpdate:number,
     link?: string,
     trashed?: boolean,
+    f_mtime?: number,
 };
 const symsl=Symbol("Slasy");//  SHOULD contain trailing slash for directory
 const symsl_dir=Symbol("Slasy_dir");
@@ -628,6 +629,53 @@ export class LSFS implements IFileSystem {
         //assertAbsoluteDir(dpath);
         return this.cachedStorage.getDirInfoItem(dpath);
     }
+    public async setFineMtime(_dpath:Canonical):Promise<number|null> {
+        if (_dpath===this.mountPoint) return null;
+        const ppath=P_up(_dpath)!;
+        const [pinfo, dpath, base]=this.fixPath(_dpath, ppath); 
+        if (!P_isDir(dpath)) return pinfo[base].lastUpdate;
+        if (pinfo[base].f_mtime!=null) return pinfo[base].f_mtime;
+        let dinfo=this.getDirInfo(dpath);
+        await Promise.all(
+            Object.keys(dinfo).map(
+                k=>this.setFineMtime(
+                    toCanonicalPath(P_rel(dpath,k as SlasyBase))))
+        );
+        dinfo=this.getDirInfo(dpath);
+        let max=null as null|number;
+        for (let _k in dinfo) {
+            const k=_k as SlasyBase;
+            const e=dinfo[k];
+            if (k.endsWith("/")) {
+                if (e.f_mtime!=null) {
+                    if (max==null || max>e.f_mtime) max=e.f_mtime;
+                } else {
+                    max=null;
+                    break;
+                }
+            } else {
+                if (max==null || e.lastUpdate>max){
+                    max=e.lastUpdate;
+                }
+            }
+        }
+        if (max!=null) {
+            pinfo[base].f_mtime=max;
+            this.cachedStorage.setDirInfoItem(ppath,pinfo);
+        }
+        return max;
+    }
+    private clearFineMtime(dpath:SlasyDir) {
+        if (toCanonicalPath(dpath)===this.mountPoint) return;
+        const ppath=P_up(dpath);
+        if (!ppath) return;
+        const pinfo=this.getDirInfo(ppath);
+        const dbase=P_name(dpath);
+        if (!pinfo[dbase].f_mtime) return;
+        delete pinfo[dbase].f_mtime;
+        this.cachedStorage.setDirInfoItem(ppath, pinfo);        
+        this.clearFineMtime(ppath);
+    }
     // called from _touch, removeEntry(rm), setMetaInfo(link, setMtime)
     // changed should be key(or key in past) of dinfo
     private putDirInfo(dpath:SlasyDir, dinfo:DirInfo, changed: SlasyBase, eventType:"change"|"rename"/*, removed:boolean*/) {
@@ -635,6 +683,7 @@ export class LSFS implements IFileSystem {
         this.cachedStorage.setDirInfoItem(dpath, dinfo);
         //const eventType=Object.hasOwn(dinfo, changed) ? "change" : "rename";
         this.getRootFS().notifyChanged( toCanonicalPath(P_rel(dpath, changed)), {eventType});
+        this.clearFineMtime(dpath);
         return; 
         /*
         const ppath = P_up(dpath);

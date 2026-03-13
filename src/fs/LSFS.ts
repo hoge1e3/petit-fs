@@ -643,7 +643,7 @@ export class LSFS implements IFileSystem {
                     toCanonicalPath(P_rel(dpath,k as SlasyBase)),rebuild))
         );
         dinfo=this.getDirInfo(dpath);
-        let max=null as null|number;
+        let max=pinfo[base].lastUpdate as null|number;
         for (let _k in dinfo) {
             const k=_k as SlasyBase;
             const e=dinfo[k];
@@ -835,6 +835,8 @@ export class LSFS implements IFileSystem {
         }
         const [pinfo, fixedPath, fixedName]=this.fixPath(path, parent);
         const eventType=Object.hasOwn(pinfo,fixedName)?"change":"rename";
+        if (info.f_mtime) delete info.f_mtime;
+        if ((info as any).hasFineMtime) delete (info as any).hasFineMtime;
         pinfo[fixedName] = info;
         //this.getRootFS().notifyChanged(path, {eventType:"change"});
         this.putDirInfo(parent, pinfo, fixedName, eventType);

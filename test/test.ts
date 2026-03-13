@@ -840,18 +840,36 @@ async function testIDB(pass:number, fixture:SFile, idbdir:SFile) {
     }
 } 
 async function testFineMtime(dev:RootFS, FS:FileSystemFactory) {
-    for (let fs of dev.df()) {
-        if (fs.fstype()==="idb") {
-            const lsfs=fs as LSFS;
-            const mpf=FS.get(fs.mountPoint);
-            for (let e of mpf.listFiles()) {
-                const nmt=naiveMtime(e);
-                const fmt=await lsfs.setFineMtime(toCanonicalPath(e.path()));
-                console.log("testFineMtime",fmt, nmt, e.path())
-                assert.eq(fmt, nmt, e.path());
+    async function set(){
+        const n=performance.now();
+        for (let fs of dev.df()) {
+            if (fs.fstype()==="idb") {
+                const lsfs=fs as LSFS;
+                const mpf=FS.get(fs.mountPoint);
+                for (let e of mpf.listFiles()) {
+                    const nmt=naiveMtime(e);
+                    const fmt=await lsfs.setFineMtime(toCanonicalPath(e.path()));
+                    console.log("testFineMtime",fmt, nmt, e.path())
+                    assert.eq(fmt, nmt, e.path());
+                }
             }
         }
+        console.log("setFineMtime took ",performance.now()-n,"msec.");
     }
+    await set();
+    const touch="/idb/pfs-test/Tonyu/Projects/MapTest/Test.tonyu";
+    const touchF=FS.get(touch);
+    for (let f=touchF;f.truncSep()!=="idb";f=f.up()!) {
+        const m1=f.getMetaInfo();
+        assert(m1.hasFineMtime,"!m1.hasFineMTime "+f);        
+    }
+    touchF.appendText("/*APPENDED*/");
+    for (let f=touchF.up()!;f.truncSep()!=="idb";f=f.up()!) {
+        const m1=f.getMetaInfo();
+        assert(!m1.hasFineMtime,"m1.hasFineMTime "+f);        
+    }
+    await set();
+    touchF.text(touchF.text().replace(/..APPENDED..$/,"") );
     function naiveMtime(dir:SFile):number {
         let max=0;
         for (let f of dir.listFiles()) {

@@ -34,5 +34,9 @@ src/types.js.map
 src/errors.d.ts
 src/errors.js
 src/errors.js.map
+src/fs/RootFS.d.ts
 src/fs/RootFS.js
 src/fs/RootFS.js.map
+src/fs/idle-timer.d.ts
+src/fs/idle-timer.js
+src/fs/idle-timer.js.map

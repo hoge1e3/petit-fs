@@ -11,6 +11,7 @@ import { createEEXIST, createEISDIR, createENOENT, createIOError } from "../erro
 import { BaseName, Canonical} from "../types.js";
 import { basename, toCanonicalPath, up} from "../pathUtil2.js";
 import { Dirent,  IFileSystem, IRootFS, LSFSOptions, ObserverEvent, Stats } from "./types.js";
+import { idleTimer, IdleTimer } from "./idle-timer.js";
 //const isDir = P.isDir.bind(P);
 const assert:(value:any, message?:string)=>asserts value=ok;
 //const up = P.up.bind(P);
@@ -410,19 +411,18 @@ class CachedStorage implements SlasyItemStorage {
     nocache: NoCacheSlasyItemStorage;
     dirInfoCache=new Map<string, CacheStatus<DirInfo>>();
     contentCache=new Map<string, CacheStatus<Content>>();
-    htimer:any=undefined;
+    htimer=idleTimer({handler:()=>this.commit()});//:IdleTimer|undefined=undefined;
     _commitPromise=new MutablePromise<void>();
     hasUncommited() {
-        return this.htimer!==undefined;
+        return this.htimer.isActive;
     }
     commitPromise(){
         if (!this.hasUncommited()) return Promise.resolve();
         return this._commitPromise;
     }
     private wakeTimer() {
-        if (this.htimer!==undefined)return;
         (globalThis as any).wakeTimercount++;
-        this.htimer=setTimeout(()=>this.commit(), 1000);
+        this.htimer.activate();
     }
     clearCache() {
         this.commit();
@@ -444,9 +444,9 @@ class CachedStorage implements SlasyItemStorage {
         }
         this.reservedDirInfos=new Set<SlasyDir>();
         this.reservedContents=new Set<SlasyReg>();
-        this.htimer=undefined;
+        //this.htimer=undefined;
         this.waitForCommit().then(()=>{
-            if (!this.htimer) {
+            if (!this.hasUncommited()) {
                 this._commitPromise.resolve();
                 this._commitPromise=new MutablePromise();
             }

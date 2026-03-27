@@ -1,7 +1,7 @@
 
 export type IdleTimer={
-    activate():void,
-    isActive:boolean,
+    postpone():void,
+    active:boolean,
 };
 export function idleTimer({
     min=10, max=1000, rate=2,
@@ -10,45 +10,34 @@ export function idleTimer({
     min?:number, max?:number, rate?:number,
     handler: ()=>void,
 }):IdleTimer {
-    let state=null as null|{
-        start: number,
-        min: number, max:number, 
-    };
-    let h=null as null|NodeJS.Timeout;
+    const start=performance.now();
+    let h:NodeJS.Timeout;
+    let done=false;
     let theHandler=()=>{
-        state=null;
-        h=null;
+        done=true;
         handler();        
     };
-    let lastAt=null as null|number;
+    let at=start+min;
+    schedule(at);
     return {
-        get isActive(){
-            return !!state;
+        get active(){
+            return !done;
         },
-        activate(){
-            if (state) {
-                const elapsed=performance.now()-state.start;
-                let at=state.start+elapsed*rate;
-                if(at>state.max) at=state.max; 
-                if(at<state.min) at=state.min; 
-                setTimeoutAt(at,);
-            } else {
-                const now=performance.now();
-                state={
-                    start: now,
-                    min: now+min, max: now+max,
-                };
-                setTimeoutAt(state.min,);
-            }
+        postpone(){
+            if (done) throw new Error("idle-timer: Already deactivated");
+            const elapsed=performance.now()-start;
+            let newAt=start+elapsed*rate;
+            if(newAt>max) newAt=max;
+            if(newAt>at){
+                at=newAt;
+                schedule(at);
+            } 
         }
     };
-    function setTimeoutAt(at:number, ) {
+    function schedule(at:number) {
+        if (h!=null) clearTimeout(h);
         let delay=at-performance.now();
         if (delay<0) delay=0;
-        if (h!=null && lastAt!=null && at<=lastAt) return;
-        lastAt=at;
-        if (h!=null) clearTimeout(h);
         h=setTimeout(theHandler, delay);
-        return h;
     } 
 }

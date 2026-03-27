@@ -411,18 +411,25 @@ class CachedStorage implements SlasyItemStorage {
     nocache: NoCacheSlasyItemStorage;
     dirInfoCache=new Map<string, CacheStatus<DirInfo>>();
     contentCache=new Map<string, CacheStatus<Content>>();
-    htimer=idleTimer({handler:()=>this.commit()});//:IdleTimer|undefined=undefined;
+    //htimer:any=undefined;
+    htimer:IdleTimer|undefined=undefined;
     _commitPromise=new MutablePromise<void>();
     hasUncommited() {
-        return this.htimer.isActive;
+        return this.htimer?.active;
     }
     commitPromise(){
         if (!this.hasUncommited()) return Promise.resolve();
         return this._commitPromise;
     }
     private wakeTimer() {
+        //if (this.htimer!==undefined)return;
+        if (this.htimer?.active){
+            this.htimer.postpone();
+            return;
+        }
         (globalThis as any).wakeTimercount++;
-        this.htimer.activate();
+        //this.htimer=setTimeout(()=>this.commit(), 1000);
+        this.htimer=idleTimer({handler:()=>this.commit()});
     }
     clearCache() {
         this.commit();
@@ -444,9 +451,10 @@ class CachedStorage implements SlasyItemStorage {
         }
         this.reservedDirInfos=new Set<SlasyDir>();
         this.reservedContents=new Set<SlasyReg>();
-        //this.htimer=undefined;
+        this.htimer=undefined;
         this.waitForCommit().then(()=>{
-            if (!this.hasUncommited()) {
+            //if (!this.htimer) {
+            if (!(this.htimer?.active)) {
                 this._commitPromise.resolve();
                 this._commitPromise=new MutablePromise();
             }

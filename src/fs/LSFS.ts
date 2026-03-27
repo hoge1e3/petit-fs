@@ -415,7 +415,7 @@ class CachedStorage implements SlasyItemStorage {
     htimer:IdleTimer|undefined=undefined;
     _commitPromise=new MutablePromise<void>();
     hasUncommited() {
-        return this.htimer?.active;
+        return !!(this.htimer?.active);
     }
     commitPromise(){
         if (!this.hasUncommited()) return Promise.resolve();

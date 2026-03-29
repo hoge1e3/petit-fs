@@ -34,6 +34,9 @@ function P_directorify(p:string):string {
 function isSlasyReg(p:SlasyReg|Canonical): p is SlasyReg {
     return p!=="/";
 }
+function isSlasyDir(p:string):p is SlasyDir {
+    return p.endsWith(SEP);
+}
 function P_truncSep(p:SlasyBase):BaseName;
 function P_truncSep(p:Slasy):Canonical;
 function P_truncSep(p:string):string;
@@ -191,7 +194,7 @@ class SlasyMemoryStorage implements SlasyItemStorage {
     }
     getContentItem(regPath: SlasyReg): Content {
         const cs = this.getItem(regPath);
-        if (isContent(cs)){
+        if (isContentIDBItem(cs)){
             return Content.deserialize(cs.content);
         } else {
             throw new Error("Invalid item data: "+regPath);
@@ -208,7 +211,7 @@ class SlasyMemoryStorage implements SlasyItemStorage {
     }
     getDirInfoItem(dpath: SlasyDir): DirInfo {
         const item = this.getItem(dpath);
-        if (isContent(item)) {
+        if (isContentIDBItem(item)) {
             throw new Error(`Invalid data in ${dpath}`);
         } else {
             return item.dirInfo;
@@ -325,9 +328,14 @@ class SlasyLocalStorage implements SlasyItemStorage{
     }*/
 }
 type IDBItem=string|NonStringIDBItem;
-type NonStringIDBItem={content:SerializedContent}|{dirInfo:DirInfo};
-function isContent(i:IDBItem): i is {content:SerializedContent}{
+type DirInfoIDBItem={dirInfo:DirInfo};
+type ContentIDBItem={content:SerializedContent};
+type NonStringIDBItem=ContentIDBItem|DirInfoIDBItem;
+function isContentIDBItem(i:IDBItem): i is ContentIDBItem{
     return typeof i==="object" && "content" in i;
+}
+function isDirInfoIDBItem(i:IDBItem):i is DirInfoIDBItem  {
+    return typeof i==="object" && "dirInfo" in i;
 }
 class SlasyIDBStorage implements SlasyItemStorage{
     constructor(public storage:MultiSyncIDBStorage<IDBItem>, /*public mountPoint:string*/){}
@@ -357,7 +365,7 @@ class SlasyIDBStorage implements SlasyItemStorage{
             } else {
                 return Content.plainText(cs);
             }
-        } else if (isContent(cs)){
+        } else if (isContentIDBItem(cs)){
             return Content.deserialize(cs.content);
         } else {
             throw new Error("Invalid item data: "+regPath);
@@ -380,7 +388,7 @@ class SlasyIDBStorage implements SlasyItemStorage{
             } catch(e) {
                 throw new Error(`Malformed JSON found in ${dpath}`);
             }
-        } else if (isContent(item)) {
+        } else if (isContentIDBItem(item)) {
             throw new Error(`Invalid data in ${dpath}`);
         } else {
             return item.dirInfo;
@@ -586,7 +594,7 @@ export class LSFS implements IFileSystem {
         this.cachedStorage=new CachedStorage(nocache, mountPoint);
         if (nocache instanceof SlasyIDBStorage) {
             /* storage.addEventListener may occurs in arbitrary order, See also constructor of CachedStorage  */
-            nocache.storage.addEventListener("change",({key,value})=>setTimeout(()=>{
+            nocache.storage.addEventListener("change",({key,value,oldValue})=>setTimeout(()=>{
                 // so setTimeout is used, it ensures occur after handler in constructor of CachedStorage
                 const c_key=toCanonicalPath(key);
                 //console.log("Storage change",key,c_key);
@@ -597,7 +605,24 @@ export class LSFS implements IFileSystem {
                     // Why may be non-existent? -> metaInfo and content may not match when many change events were sent via BroadcastChannel. 
                     //const statany=stat as any;
                     //statany.eventType="change";
-                    this.rootFS.notifyChanged(c_key, {eventType:"change"}); 
+                    if (isSlasyDir(key) && value && oldValue &&
+                        isDirInfoIDBItem(value) && 
+                        isDirInfoIDBItem(oldValue)) {
+                        const added=(o:string[],n:string[])=>{
+                            const seto=new Set(o);
+                            const setn=new Set(n);
+                            for (let k of seto) setn.delete(k);
+                            return setn;
+                        }
+                        const keyDiff=(a:string[],b:string[])=>new Set([...added(a,b),...added(b,a)]);
+                        const diffs=keyDiff(Object.keys(value.dirInfo), Object.keys(oldValue.dirInfo));
+                        for (let diff of diffs) {
+                            this.rootFS.notifyChanged(toCanonicalPath(
+                                P_rel(key, diff as SlasyBase)), {eventType:"rename"}); 
+                        }
+                    } else {
+                        this.rootFS.notifyChanged(c_key, {eventType:"change"}); 
+                    }
                 }
             },100));
         }

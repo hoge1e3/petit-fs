@@ -232,6 +232,7 @@ export type FdEntry={
     offset: number;
     close: ()=>void;
 }
+export type WatchFileListener=(old:Stats, current:Stats)=>void;
 /**
  * Represents a virtual POSIX-like file system.
  */
@@ -764,10 +765,11 @@ export class FileSystem {
             close:()=>ob.remove()
         };
     }
+    watchMap=new Map<string, Set<[NodeJS.Timeout,WatchFileListener]>>();
     public watchFile(path: string, ...opts:any[]){
         path=toAbsolutePath(path);
         let sec=opts.shift();
-        let options:any, listener:(old:Stats, current:Stats)=>void;
+        let options:any, listener:WatchFileListener;
         if(typeof sec==="function"){
             listener=sec;
             options={};
@@ -787,7 +789,24 @@ export class FileSystem {
                 prev=cur;
             }
         }
-        setInterval(loop,inter);
+        const htime=setInterval(loop,inter);
+        let watchSet;
+        if (this.watchMap.has(path)) {
+            watchSet=this.watchMap.get(path)!;
+        } else {
+            watchSet=new Set<[NodeJS.Timeout, WatchFileListener]>();
+            this.watchMap.set(path, watchSet);
+        }
+        watchSet.add([htime, listener]);
+    }
+    unwatchFile(path:string, listener?: WatchFileListener) {
+        const watchSet=this.watchMap.get(path);
+        if (!watchSet) return;
+        for (let [htime, _listener] of watchSet) {
+            if (!listener || _listener===listener) {
+                clearInterval(htime);
+            }
+        }
     }
     openSync(path:string, mode:string) {
         path=toAbsolutePath(path);

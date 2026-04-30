@@ -522,36 +522,6 @@ function chkRecur(dir:SFile, options:DirectoryOptions, expected:string[]) {
     _console.log("getDirTree",dir, t);
     eqaSorted(Object.keys(t), expected);
 }
-/*
-function testContent() {
-    let C = Content;
-    const a=[0xe3, 0x81, 0xa6, 0xe3, 0x81, 0x99, 0xe3, 0x81, 0xa8, 0x61, 0x62, 0x63];
-    const conts:{[key:string]: [string|ArrayBufferLike, ( ((s:string)=>Content)| ((s:ArrayBufferLike)=>Content) ) , (c:Content)=>string|ArrayBufferLike]}={
-        p:["てすとabc", (s:string)=>C.plainText(s), (c:Content)=>c.toPlainText()],
-        u:["data:text/plain;base64,44Gm44GZ44GoYWJj", (u:string)=>C.url(u), (c:Content)=>c.toURL()],
-        a:[Uint8Array.from(a).buffer, (a:ArrayBufferLike)=>C.bin(a, "text/plain"), (c:Content)=>c.toArrayBuffer()],
-        n:[Buffer.from(a),(n:ArrayBufferLike)=>C.bin(n, "text/plain"), (c:Content)=>c.toNodeBuffer()],
-    };
-    const SRC=0, TOCONT=1, FROMCONT=2;
-    let binLen=(conts.a[SRC] as ArrayBufferLike).byteLength;
-    for (let tfrom of Object.keys(conts) ) 
-        for (let tto of Object.keys(conts) ) chk(tfrom,tto);
-    function chk(tfrom: string ,tto:string) {
-        const src=conts[tfrom][SRC];
-        const c=conts[tfrom][TOCONT](src as any);
-        if (c.hasNodeBuffer()) {
-            assert.eq(((c as any).nodeBuffer as Buffer).length, binLen,"Bin length not match");
-        }
-        const dst=conts[tto][FROMCONT](c);
-        _console.log("Convert Content ",tfrom,"->",tto);
-        if (!contEq(dst as any, conts[tto][SRC] as any)) {
-            _console.log("Actual: ",dst);
-            _console.log("Expected: ",conts[tto][SRC]);
-            _console.log("Content bufType ", c.bufType );
-            throw new Error(`Fail at ${tfrom} to ${tto}`);
-        }
-    }
-}*/
 async function asyncTest(testd:SFile) {
     //await checkZip(testd);
     await checkWatch(testd);

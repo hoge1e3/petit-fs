@@ -108,7 +108,7 @@ export interface IFileSystem {
     //copyFile(path:string, dst:string):void;
     //mv(path:string, dst:string):void;
     rm(path:Canonical):void;
-    link(path:Canonical, to:string):void;
+    link(path:string, to:string):void;
     isLink(path:Canonical):string|undefined;
     //getURL(path:string):string;
     onAddObserver(path:Canonical):{remove:()=>void}|undefined;

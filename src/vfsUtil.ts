@@ -654,9 +654,10 @@ export class FileSystem {
     public symlinkSync(target: string, linkpath: string): void {
         if (this.isReadonly) throw createIOError("EROFS");
         const [fs, fpath]=this.resolveLink(toCanonicalPath(linkpath));
-        if (!pathlib.isAbsolute(target)) {
+        // relative path should be saved as is.
+        /*if (!pathlib.isAbsolute(target)) {
             target=join(fpath, target)
-        }
+        }*/
         fs.link(fpath, target);
         this.clearLinkCache();
     }

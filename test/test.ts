@@ -339,6 +339,63 @@ try {
     }
     //console.log("Unknown tags:", JSON.stringify(_console.unknownlist,null,2))
 }
+
+function testSymlink(baseDir: string) {
+    const assert_eq=(a:any,b:any,m:string)=>{
+        console.log("symlink:",a,b,m);
+        assert.eq(a,b,m);
+    }
+  const tmp = path.join(baseDir, "symlink-test");
+
+  // clean & prepare
+  fs.rmSync(tmp, { recursive: true, force: true });
+  fs.mkdirSync(tmp, { recursive: true });
+
+  const targetFile = path.join(tmp, "target.txt");
+  fs.writeFileSync(targetFile, "hello");
+
+  // === absolute symlink test ===
+  const absLink = path.join(tmp, "abs-link.txt");
+  fs.symlinkSync(targetFile, absLink);
+
+  const absRead = fs.readlinkSync(absLink);
+  assert_eq(absRead, targetFile, "absolute readlink should return absolute path");
+
+  const absContent = fs.readFileSync(absLink, "utf-8");
+  assert_eq(absContent, "hello", "absolute symlink should resolve to correct content");
+
+  // === relative symlink test ===
+  const relLink = path.join(tmp, "rel-link.txt");
+  const relPath = path.relative(tmp, targetFile);
+  fs.symlinkSync(relPath, relLink);
+  
+  const relRead = fs.readlinkSync(relLink);
+  assert_eq(relRead, relPath, "relative readlink should return relative path");
+
+  const relContent = fs.readFileSync(relLink, "utf-8");
+  assert_eq(relContent, "hello", "relative symlink should resolve to correct content");
+
+  // === double symlink resolution test ===
+  const link1 = path.join(tmp, "link1.txt");
+  const link2 = path.join(tmp, "link2.txt");
+
+  fs.symlinkSync(targetFile, link1); // link1 -> target
+  const relToLink1 = path.relative(tmp, link1);
+  fs.symlinkSync(relToLink1, link2); // link2 -> link1
+
+  const link2Read = fs.readlinkSync(link2);
+  assert_eq(link2Read, relToLink1, "link2 should point to link1");
+
+  const contentVia2Links = fs.readFileSync(link2, "utf-8");
+  assert_eq(contentVia2Links, "hello", "double symlink should resolve correctly");
+
+  // === realpath resolution ===
+  const resolved = fs.realpathSync(link2);
+  assert_eq(resolved, targetFile, "realpath should resolve to final target");
+
+  console.log("All symlink assertions passed.");
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
 async function moveTest(testd:SFile) {
     let tmp1 = testd.rel("tmp1");
     tmp1.mkdir();
@@ -790,6 +847,7 @@ async function testIDB(pass:number, fixture:SFile, idbdir:SFile) {
         fixture.copyTo(idbdir);
         assert(idbdir.exists(), "IDBDir not exists.");
         checkSameDirContents(fixture, idbdir);
+        testSymlink(idbdir.path());
     } else {
         checkSameDirContents(fixture, idbdir);
         const README=idbdir.rel("README.txt");

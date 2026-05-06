@@ -1271,16 +1271,17 @@ export class Mount {
 
 type FileDataBuffer = { encoding?: undefined; data: Buffer; } | { encoding: BufferEncoding; data: string; };
 
-async function retry<T>(f:()=>T){
-  try{
-    return f();
-  }catch(_e){
-    const e=_e as any;
-    if(e.retryPromise){
-      await e.retryPromise;
-      return f();
-    }else{
-      throw e;
+export async function retry<T>(f:()=>T){
+  while(true) {
+    try{
+        return f();
+    }catch(_e){
+        const e=_e as any;
+        if(e.retryPromise){
+            await e.retryPromise;
+        }else{
+            throw e;
+        }
     }
   }
 }

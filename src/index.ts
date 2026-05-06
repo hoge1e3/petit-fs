@@ -2,7 +2,7 @@ import { FileSystem, DeviceManager, os, path, process as proc } from "./vfsUtil.
 export const fs=new FileSystem();
 export const dev=new DeviceManager(fs);
 proc.__setfs(fs);
-export {process, os, path} from "./vfsUtil.js";
+export {process, os, path, retry} from "./vfsUtil.js";
 export {LSFS} from "./fs/LSFS.js";
 export {Buffer} from "buffer";
 export {default as PathUtil} from "./fs/PathUtil.js";

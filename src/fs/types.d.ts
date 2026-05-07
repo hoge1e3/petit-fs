@@ -1,5 +1,6 @@
 import { Content } from "@hoge1e3/content";
 import { BaseName, Canonical} from "../types";
+import { LazyLevel } from "sync-idb-kvs";
 export type Stats=import("node:fs").Stats;
 //export type ObserverEvent={eventType:"change"|"rename"} & Stats;
 //export type FSTab={fs:FileSystem, mountPoint:string};
@@ -138,6 +139,6 @@ export type LSFSOptions={
     readOnly?:boolean,
     // For IDB
     dbName?: string, 
-    lazy?:0|1|2,
+    lazy?:LazyLevel,
     //storeName?: string,
 };

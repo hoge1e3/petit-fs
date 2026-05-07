@@ -84,6 +84,8 @@ try {
     fs.mkdirSync("/zip/",{recursive:true});
     dev.mountSync("/zip/","ram");
     await dev.mount("/idb/","idb");
+    await dev.mount("/lv3/","idb",{dbName:"lazy",lazy:3});
+    
     assert.eq(fs.readdirSync("/").filter((n)=>n==="zip").length, 1);
     assert(fs.readdirSync("/").every((n)=>!n.includes("/")));
     assert.eq(fs.readdirSync("/",{withFileTypes:true}).filter((e)=>e.name==="zip").length, 1);
@@ -874,6 +876,7 @@ async function testFineMtime(dev:RootFS, FS:FileSystemFactory) {
             if (fs.fstype()==="idb") {
                 const lsfs=fs as LSFS;
                 const mpf=FS.get(fs.mountPoint);
+                if (fs.mountPoint.includes("lv3"))continue;
                 for (let e of mpf.listFiles()) {
                     const nmt=naiveMtime(e);
                     const fmt=await lsfs.setFineMtime(toCanonicalPath(e.path()));

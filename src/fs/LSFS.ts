@@ -507,7 +507,7 @@ class CachedStorage implements SlasyItemStorage {
         return this.nocache.hasContentItem(regPath);
     }
     setContentItem(regPath: SlasyReg, c: Content): void {
-        //assertAbsoluteRegular(regPath);
+        // TODO: comment this. too much try-again-layer(e.g. write /lv3/hoge.txt -> loading /lv3/hoge.txt/  :-) on lazy level 3
         assert(!this.hasDirInfoItem(P_directorify(regPath)), `${regPath} exists as a directroy.`);
         this.contentCache.set(regPath, {value:c});
         this.reservedContents.add(regPath);

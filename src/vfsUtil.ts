@@ -831,12 +831,17 @@ export class FileSystem {
         this.fdEntries.delete(fd);
     }
     constants={
-        R_OK:"R_OK",
-        W_OK:"W_OK",
+        F_OK:0,
+        R_OK:4,
+        W_OK:2,
+        X_OK:1,
     };
-    accessSync(path:string, type:string) {
+    accessSync(path:string, type:number=0) {
         const [fs, fpath]=this.resolveLink(toCanonicalPath(path));
-        if (type==="W_OK") {
+        if (!this.existsSync(path)) {
+            throw createENOENT(path);
+        }
+        if (type===this.constants.W_OK) {
             if (fs.isReadOnly(fpath)) {
                 throw createIOError("EROFS",`${path} is read only.`);
             }

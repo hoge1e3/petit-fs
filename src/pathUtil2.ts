@@ -1,5 +1,5 @@
 import _p from "./path/index.js";
-import { Absolute, BaseName, Canonical, Directorified, Normalized } from "./types";
+import type { Absolute, BaseName, Canonical, Directorified, Normalized } from "./types.js";
 export const path=_p.path.posix;
 export function isAbsolute(p:string):p is Absolute {
     return path.isAbsolute(p);

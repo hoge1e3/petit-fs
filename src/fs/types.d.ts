@@ -1,5 +1,5 @@
 import { Content } from "@hoge1e3/content";
-import { BaseName, Canonical} from "../types";
+import type { BaseName, Canonical} from "../types.js";
 import { LazyLevel } from "sync-idb-kvs";
 export type Stats=import("node:fs").Stats;
 //export type ObserverEvent={eventType:"change"|"rename"} & Stats;
